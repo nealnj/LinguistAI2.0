@@ -96,6 +96,79 @@ export const generateVocabulary = async (topic: string = 'beginner') => {
   return JSON.parse(response.text || '[]');
 };
 
+export const generateGrammarLesson = async (topic: string) => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `As an English teacher for Chinese students, explain the grammar topic "${topic}". 
+    Use a very systematic approach. Include:
+    - title: Simplified Chinese name
+    - concept: Simple Chinese explanation
+    - analogy: A creative analogy that a Chinese speaker can relate to
+    - rules: ARRAY of {title, content (Chinese)}
+    - examples: ARRAY of {english, chinese, note}
+    Return JSON.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          concept: { type: Type.STRING },
+          analogy: { type: Type.STRING },
+          rules: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                content: { type: Type.STRING }
+              }
+            }
+          },
+          examples: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                english: { type: Type.STRING },
+                chinese: { type: Type.STRING },
+                note: { type: Type.STRING }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+  return JSON.parse(response.text || '{}');
+};
+
+export const generateGrammarQuiz = async (topic: string) => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `Create 3 interactive grammar quiz questions for the topic: ${topic}. 
+    Each should have a question, 4 options, and a detailed Chinese explanation. Return JSON.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            question: { type: Type.STRING },
+            options: { type: Type.ARRAY, items: { type: Type.STRING } },
+            correctAnswer: { type: Type.INTEGER },
+            explanation: { type: Type.STRING }
+          }
+        }
+      }
+    }
+  });
+  return JSON.parse(response.text || '[]');
+};
+
 export const generateImage = async (prompt: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({

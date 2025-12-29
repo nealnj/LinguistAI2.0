@@ -16,7 +16,7 @@ export interface WordForm {
   pos: string;
   meaning: string;
   example: string;
-  derivationReason: string; // 变形依据
+  derivationReason: string;
 }
 
 export interface RelatedWordEntry {
@@ -49,6 +49,21 @@ export interface VocabularyWord {
   relatedWords?: { synonym: RelatedWordEntry[]; antonym: RelatedWordEntry[] };
   visualPrompt?: string;
   imageUrl?: string;
+}
+
+export interface GrammarLesson {
+  title: string;
+  concept: string; // The core rule explained simply in Chinese
+  analogy: string; // A Chinese-friendly analogy
+  rules: { title: string; content: string }[];
+  examples: { english: string; chinese: string; note: string }[];
+}
+
+export interface GrammarQuiz {
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation: string;
 }
 
 export interface WritingAnalysis {

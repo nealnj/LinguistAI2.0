@@ -9,7 +9,9 @@ import {
   Trophy, 
   Menu, 
   X,
-  Sparkles
+  Sparkles,
+  Zap,
+  Stars
 } from 'lucide-react';
 import { LearningModule } from './types';
 import DashboardView from './views/DashboardView';
@@ -17,6 +19,7 @@ import VocabularyView from './views/VocabularyView';
 import SpeakingView from './views/SpeakingView';
 import WritingView from './views/WritingView';
 import ExamPrepView from './views/ExamPrepView';
+import GrammarView from './views/GrammarView';
 
 const App: React.FC = () => {
   const [activeModule, setActiveModule] = useState<LearningModule>(LearningModule.DASHBOARD);
@@ -30,6 +33,8 @@ const App: React.FC = () => {
         return <DashboardView onNavigate={setActiveModule} />;
       case LearningModule.VOCABULARY:
         return <VocabularyView onNavigate={setActiveModule} />;
+      case LearningModule.GRAMMAR:
+        return <GrammarView />;
       case LearningModule.SPEAKING:
         return <SpeakingView />;
       case LearningModule.WRITING:
@@ -44,7 +49,9 @@ const App: React.FC = () => {
 
   const menuItems = [
     { id: LearningModule.DASHBOARD, label: '我的主页', icon: <LayoutDashboard size={20} /> },
+    { id: LearningModule.ROADMAP, label: '学习路径', icon: <Zap size={20} /> },
     { id: LearningModule.VOCABULARY, label: '系统单词', icon: <BookOpen size={20} /> },
+    { id: LearningModule.GRAMMAR, label: '语法实验室', icon: <Stars size={20} /> },
     { id: LearningModule.SPEAKING, label: 'AI 口语', icon: <Mic2 size={20} /> },
     { id: LearningModule.WRITING, label: '智能写作', icon: <PenTool size={20} /> },
     { id: LearningModule.IELTS, label: '雅思专区', icon: <GraduationCap size={20} /> },
@@ -56,7 +63,7 @@ const App: React.FC = () => {
       <aside 
         className={`${
           isSidebarOpen ? 'w-64' : 'w-20'
-        } bg-white border-r border-slate-200 transition-all duration-300 flex flex-col z-50`}
+        } bg-white border-r border-slate-200 transition-all duration-300 flex flex-col z-50 shadow-sm`}
       >
         <div className="p-6 flex items-center gap-3 border-b border-slate-100">
           <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-200">
@@ -70,7 +77,7 @@ const App: React.FC = () => {
             <button
               key={item.id}
               onClick={() => setActiveModule(item.id)}
-              className={`w-full flex items-center gap-4 px-6 py-4 transition-all relative ${
+              className={`w-full flex items-center gap-4 px-6 py-4 transition-all relative group ${
                 activeModule === item.id 
                   ? 'text-indigo-600' 
                   : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
@@ -79,7 +86,7 @@ const App: React.FC = () => {
               {activeModule === item.id && (
                 <div className="absolute left-0 top-1 bottom-1 w-1 bg-indigo-600 rounded-r-full" />
               )}
-              <div className="shrink-0">{item.icon}</div>
+              <div className={`shrink-0 transition-transform group-active:scale-90`}>{item.icon}</div>
               {isSidebarOpen && <span className="font-bold whitespace-nowrap text-sm">{item.label}</span>}
             </button>
           ))}
@@ -102,8 +109,8 @@ const App: React.FC = () => {
             {menuItems.find(m => m.id === activeModule)?.label}
           </h2>
           <div className="flex items-center gap-4">
-            <div className="bg-amber-50 text-amber-700 px-4 py-1.5 rounded-xl text-[10px] font-black border border-amber-100 uppercase tracking-widest">
-              Level 0 • Foundation
+            <div className="bg-indigo-50 text-indigo-700 px-4 py-1.5 rounded-xl text-[10px] font-black border border-indigo-100 uppercase tracking-widest">
+              Linguist Prime • Beta
             </div>
             <img 
               src="https://picsum.photos/seed/linguist/40/40" 
