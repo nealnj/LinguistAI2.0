@@ -27,7 +27,8 @@ import {
   AlertCircle,
   Quote,
   Eye,
-  Info
+  Info,
+  Stars
 } from 'lucide-react';
 
 function decode(base64: string) {
@@ -152,7 +153,7 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
   };
 
   const handleNext = () => {
-    if (currentIndex < words.length - 1) { setCurrentIndex(currentIndex + 1); } else { setIsFinished(true); }
+    if (currentIndex < words.length - 1) { setCurrentIndex(currentIndex + 1); setUserInput(''); setShowHint(false); setFailCount(0); } else { setIsFinished(true); }
   };
 
   const startReview = () => {
@@ -192,36 +193,40 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
 
   if (loading) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-4">
-        <Loader2 className="animate-spin text-indigo-600" size={48} />
-        <p className="text-slate-500 font-black uppercase tracking-widest text-xs">正在根据 0 基础定制系统化词库...</p>
+      <div className="h-full flex flex-col items-center justify-center gap-6 animate-pulse">
+        <div className="relative">
+          <Loader2 className="animate-spin text-indigo-600" size={64} />
+          <Stars className="absolute -top-2 -right-2 text-amber-400 animate-float" size={24} />
+        </div>
+        <p className="text-slate-500 font-black uppercase tracking-widest text-sm">正在构建 4K 全真视觉词库...</p>
       </div>
     );
   }
 
   if (isFinished && !reviewMode) {
     return (
-      <div className="max-w-4xl mx-auto py-12 animate-in zoom-in-95 duration-500">
-        <div className="bg-white rounded-[3rem] shadow-2xl p-12 text-center border border-slate-100 overflow-hidden relative">
+      <div className="max-w-4xl mx-auto py-12 animate-slide-up">
+        <div className="bg-white rounded-[4rem] shadow-2xl p-16 text-center border border-slate-100 overflow-hidden relative">
+          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500" />
           <div className="relative z-10 flex flex-col items-center">
-            <div className="w-24 h-24 bg-amber-100 rounded-3xl flex items-center justify-center text-amber-600 mb-8 shadow-inner"><Trophy size={48} /></div>
-            <h2 className="text-4xl font-black text-slate-800 mb-4 tracking-tighter">本组词汇学习达成！</h2>
-            <p className="text-slate-500 mb-10 max-w-md mx-auto leading-relaxed">太棒了！AI 导师建议您在 <span className="text-indigo-600 font-bold">20分钟</span> 之后进行第一次艾宾浩斯复习。主页已标记“待复习”。</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg mb-10">
-              <button onClick={startReview} className="flex items-center justify-center gap-3 py-5 rounded-2xl bg-indigo-600 text-white font-black hover:bg-indigo-700 shadow-xl active:scale-95"><RefreshCw size={20} /> 进入即时互动复习</button>
-              <button onClick={fetchWords} className="flex items-center justify-center gap-3 py-5 rounded-2xl bg-white border-2 border-slate-100 text-slate-700 font-black hover:bg-slate-50 active:scale-95"><BookOpen size={20} /> 学习下一组词汇</button>
+            <div className="w-28 h-28 bg-amber-50 rounded-[2.5rem] flex items-center justify-center text-amber-500 mb-8 shadow-inner animate-float"><Trophy size={56} /></div>
+            <h2 className="text-5xl font-black text-slate-800 mb-4 tracking-tighter">本单元通关！</h2>
+            <p className="text-slate-500 mb-12 max-w-lg mx-auto text-lg leading-relaxed">系统已将今日词组存入您的长期记忆队列。第一次复习将在 <span className="text-indigo-600 font-black underline decoration-indigo-200 underline-offset-8">20分钟后</span> 开启。</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-xl mb-12">
+              <button onClick={startReview} className="flex items-center justify-center gap-3 py-6 rounded-[2rem] bg-slate-900 text-white font-black text-lg hover:bg-slate-800 shadow-2xl transition-all active:scale-95 group"><RefreshCw size={24} className="group-hover:rotate-180 transition-transform duration-700" /> 立即互动复现</button>
+              <button onClick={fetchWords} className="flex items-center justify-center gap-3 py-6 rounded-[2rem] bg-white border-2 border-slate-100 text-slate-700 font-black text-lg hover:bg-slate-50 shadow-sm active:scale-95"><BookOpen size={24} /> 继续学习新词</button>
             </div>
-            <div className="w-full border-t border-slate-100 pt-8 mt-4">
-              <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">推荐后续学习</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="w-full border-t border-slate-50 pt-12 mt-4">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-10">AI 推荐后续路径</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
-                  { module: LearningModule.SPEAKING, icon: <Mic2 size={18} />, label: '口语练习' },
-                  { module: LearningModule.WRITING, icon: <PenTool size={18} />, label: '写作训练' },
-                  { module: LearningModule.DASHBOARD, icon: <ArrowRight size={18} />, label: '查看进度' }
+                  { module: LearningModule.SPEAKING, icon: <Mic2 size={24} />, label: '口语实战' },
+                  { module: LearningModule.WRITING, icon: <PenTool size={24} />, label: '写作润色' },
+                  { module: LearningModule.ROADMAP, icon: <ArrowRight size={24} />, label: '阶段路径' }
                 ].map((item, idx) => (
-                  <button key={idx} onClick={() => onNavigate && onNavigate(item.module)} className="flex flex-col items-center gap-2 p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:border-indigo-200 transition-all group">
-                    <div className="text-slate-400 group-hover:text-indigo-600 transition-colors">{item.icon}</div>
-                    <span className="text-xs font-bold text-slate-600">{item.label}</span>
+                  <button key={idx} onClick={() => onNavigate && onNavigate(item.module)} className="flex flex-col items-center gap-4 p-8 rounded-[2.5rem] bg-slate-50 border border-slate-100 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all group animate-slide-up delay-100">
+                    <div className="text-slate-300 group-hover:text-indigo-600 transition-colors group-hover:animate-float">{item.icon}</div>
+                    <span className="text-xs font-black text-slate-500 group-hover:text-slate-800 uppercase tracking-widest">{item.label}</span>
                   </button>
                 ))}
               </div>
@@ -236,30 +241,33 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
 
   if (reviewMode && currentWord) {
     return (
-      <div className="max-w-2xl mx-auto py-12">
-        <div className="bg-white rounded-[2.5rem] shadow-xl p-10 border border-slate-100 text-center relative overflow-hidden">
-          <div className="mb-6 flex justify-between items-center text-xs font-black uppercase tracking-widest text-slate-400"><span>互动复习模式</span><span>{currentIndex + 1} / {words.length}</span></div>
-          <div className="mb-8 flex flex-col items-center">
-            {currentWord.imageUrl && <img src={currentWord.imageUrl} className="w-32 h-32 rounded-3xl mb-4 shadow-lg border border-slate-100 object-cover" />}
-            <h2 className="text-4xl font-black text-slate-800 mb-2">{currentWord.translation}</h2>
-            <p className="text-slate-400 italic">请拼写出对应的英文单词</p>
+      <div className="max-w-2xl mx-auto py-12 animate-slide-up">
+        <div className="bg-white rounded-[3.5rem] shadow-2xl p-12 border border-slate-100 text-center relative overflow-hidden">
+          <div className="mb-8 flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+            <span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" /> 互动复现模式</span>
+            <span>Step {currentIndex + 1} / {words.length}</span>
+          </div>
+          <div className="mb-10 flex flex-col items-center">
+            {currentWord.imageUrl && <div className="hover-subtle-zoom w-40 h-40 rounded-[2.5rem] mb-6 shadow-2xl border-4 border-white overflow-hidden"><img src={currentWord.imageUrl} className="w-full h-full object-cover" /></div>}
+            <h2 className="text-5xl font-black text-slate-800 mb-3 tracking-tighter">{currentWord.translation}</h2>
+            <p className="text-slate-400 font-medium italic">输入英文单词以加强神经连接</p>
           </div>
           <div className="relative group">
-            <input autoFocus value={userInput} onChange={(e) => setUserInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && checkReview()} placeholder="Type word here..." className={`w-full bg-slate-50 border-2 rounded-2xl p-6 text-center text-2xl font-black outline-none transition-all ${reviewFeedback === 'correct' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : reviewFeedback === 'wrong' ? 'border-rose-500 bg-rose-50 shake text-rose-700' : 'border-slate-100 focus:border-indigo-600 focus:bg-white'}`} />
-            {reviewFeedback === 'correct' && <Check className="absolute right-6 top-1/2 -translate-y-1/2 text-emerald-500" size={32} />}
+            <input autoFocus value={userInput} onChange={(e) => setUserInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && checkReview()} placeholder="Type word..." className={`w-full bg-slate-50 border-4 rounded-[2rem] p-8 text-center text-4xl font-black outline-none transition-all ${reviewFeedback === 'correct' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : reviewFeedback === 'wrong' ? 'border-rose-500 bg-rose-50 shake text-rose-700' : 'border-slate-100 focus:border-indigo-600 focus:bg-white focus:shadow-2xl'}`} />
+            {reviewFeedback === 'correct' && <div className="absolute right-8 top-1/2 -translate-y-1/2 text-emerald-500 animate-float"><Check size={48} /></div>}
           </div>
           {showHint && (
-            <div className="mt-6 p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-center gap-3 animate-in slide-in-from-top-4">
-              <AlertCircle size={20} className="text-amber-500 shrink-0" />
+            <div className="mt-8 p-6 bg-amber-50 rounded-[2rem] border-2 border-amber-200 flex items-center gap-4 animate-slide-up">
+              <div className="bg-amber-400 text-white p-3 rounded-2xl shadow-lg animate-float"><AlertCircle size={28} /></div>
               <div className="text-left">
-                <p className="text-xs font-black text-amber-700 uppercase">导师提示 (错误次数过多)</p>
-                <p className="text-sm text-amber-900 font-bold">正确拼写是: <span className="underline decoration-amber-400 underline-offset-4">{currentWord.word}</span></p>
+                <p className="text-xs font-black text-amber-700 uppercase tracking-widest mb-1">AI 记忆协助</p>
+                <p className="text-xl text-amber-900 font-black tracking-tight">正确拼写: <span className="bg-white px-3 py-1 rounded-xl shadow-sm border border-amber-100">{currentWord.word}</span></p>
               </div>
             </div>
           )}
-          <div className="mt-10 flex gap-4">
-            <button onClick={() => { setReviewMode(false); setIsFinished(true); }} className="flex-1 py-4 text-slate-400 font-bold hover:text-slate-600 transition-all">退出复习</button>
-            <button onClick={checkReview} className="flex-[2] py-4 bg-slate-900 text-white font-black rounded-xl hover:bg-slate-800 transition-all shadow-lg active:scale-95">提交答案</button>
+          <div className="mt-12 flex gap-4">
+            <button onClick={() => { setReviewMode(false); setIsFinished(true); }} className="flex-1 py-5 text-slate-400 font-black hover:text-slate-600 transition-all uppercase tracking-widest text-xs">退出</button>
+            <button onClick={checkReview} className="flex-[3] py-5 bg-indigo-600 text-white font-black rounded-[1.5rem] hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all active:scale-95 text-lg">验证答案</button>
           </div>
         </div>
       </div>
@@ -267,82 +275,85 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
   }
 
   return (
-    <div className="max-w-6xl mx-auto flex flex-col gap-6 animate-in fade-in duration-500 pb-10">
-      <div className="flex items-center justify-between bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="bg-indigo-100 p-3 rounded-2xl text-indigo-600 shadow-sm"><BookOpen size={24} /></div>
+    <div className="max-w-7xl mx-auto flex flex-col gap-8 animate-in fade-in duration-700 pb-20">
+      <div className="flex items-center justify-between bg-white px-10 py-8 rounded-[3rem] border border-slate-100 shadow-sm animate-slide-up">
+        <div className="flex items-center gap-6">
+          <div className="bg-indigo-600 p-4 rounded-[1.5rem] text-white shadow-xl animate-float"><BookOpen size={28} /></div>
           <div>
-            <h1 className="text-xl font-black text-slate-800">系统词汇积累</h1>
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">任务进度: {currentIndex + 1} / {words.length}</p>
+            <h1 className="text-2xl font-black text-slate-800 tracking-tighter">系统词汇深度积累</h1>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" /> 当前任务: {currentIndex + 1} / {words.length}
+            </p>
           </div>
         </div>
-        <button onClick={fetchWords} className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:text-slate-600 transition-all"><RefreshCw size={18} /></button>
+        <button onClick={fetchWords} className="p-4 bg-slate-50 text-slate-400 rounded-2xl hover:text-slate-800 hover:bg-slate-100 transition-all active:rotate-180 duration-500"><RefreshCw size={20} /></button>
       </div>
 
       {currentWord && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-7 space-y-6">
-            <div className="bg-white rounded-[3rem] shadow-xl p-12 border border-slate-100 relative overflow-hidden group text-center">
-              <div className="mb-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase inline-block">{currentWord.pos}</div>
-              <h2 className="text-7xl font-black text-slate-800 mb-2 tracking-tighter">{currentWord.word}</h2>
-              <div className="flex items-center justify-center gap-4 text-slate-300 mb-8 font-mono text-2xl">
-                <span>/{currentWord.phonetic}/</span>
-                <button onClick={() => playPronunciation(currentWord.word)} disabled={isPlaying} className={`p-5 rounded-2xl shadow-xl transition-all ${isPlaying ? 'bg-indigo-600 text-white animate-pulse' : 'bg-white text-indigo-600 border border-indigo-50 hover:scale-105 active:scale-95'}`}><Volume2 size={24} /></button>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div className="lg:col-span-7 space-y-8 animate-slide-up delay-100">
+            <div className="bg-white rounded-[4rem] shadow-2xl p-16 border border-slate-100 relative overflow-hidden group text-center">
+              <div className="mb-4 px-4 py-2 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase inline-block shadow-sm">{currentWord.pos}</div>
+              <h2 className="text-8xl font-black text-slate-800 mb-4 tracking-tighter group-hover:scale-105 transition-transform duration-700">{currentWord.word}</h2>
+              <div className="flex items-center justify-center gap-6 text-slate-300 mb-12 font-mono text-3xl">
+                <span className="italic opacity-80">/{currentWord.phonetic}/</span>
+                <button onClick={() => playPronunciation(currentWord.word)} disabled={isPlaying} className={`p-6 rounded-[2rem] shadow-2xl transition-all ${isPlaying ? 'bg-indigo-600 text-white animate-pulse' : 'bg-white text-indigo-600 border border-indigo-50 hover:scale-110 active:scale-90 hover:shadow-indigo-100'}`}><Volume2 size={32} /></button>
               </div>
               
-              <div className="w-full relative mb-10 overflow-hidden rounded-[2.5rem] bg-slate-50 border border-slate-100 min-h-[256px] flex items-center justify-center group">
+              <div className="w-full relative mb-12 overflow-hidden rounded-[3.5rem] bg-slate-50 border border-slate-100 min-h-[350px] flex items-center justify-center hover-subtle-zoom cursor-crosshair">
                 {loadingImage ? (
-                  <div className="flex flex-col items-center gap-2"><Loader2 className="animate-spin text-slate-300" /><span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">AI 绘图中...</span></div>
+                  <div className="flex flex-col items-center gap-4"><Loader2 className="animate-spin text-indigo-300" size={48} /><span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">正在生成 8K 真实记忆锚点...</span></div>
                 ) : currentWord.imageUrl ? (
-                  <img src={currentWord.imageUrl} className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-700" />
+                  <img src={currentWord.imageUrl} className="w-full h-[400px] object-cover transition-all duration-1000" />
                 ) : (
-                  <Sparkles size={64} className="text-indigo-100" />
+                  <Sparkles size={80} className="text-indigo-100 animate-float" />
                 )}
-                <div className="absolute bottom-4 left-4 flex items-center gap-2">
-                  <span className="px-3 py-1 bg-white/80 backdrop-blur-md rounded-lg text-[9px] font-black text-slate-500 uppercase">记忆辅助图</span>
+                <div className="absolute top-6 left-6 flex items-center gap-3">
+                  <div className="px-4 py-2 bg-white/90 backdrop-blur-md rounded-2xl text-[10px] font-black text-slate-800 uppercase shadow-xl flex items-center gap-2 border border-white/50"><Stars size={12} className="text-amber-400" /> 真实视觉记忆锚点</div>
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 text-left mb-10">
-                <p className="text-4xl font-black text-slate-800 mb-4">{currentWord.translation}</p>
-                <div className="flex gap-3">
-                  <Quote size={20} className="text-indigo-200 shrink-0" />
-                  <p className="text-xl italic text-slate-500 leading-relaxed font-medium">"{currentWord.example}"</p>
+              <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 text-left mb-12 relative overflow-hidden">
+                <div className="absolute -top-10 -right-10 text-slate-100/50"><Quote size={150} /></div>
+                <p className="text-5xl font-black text-slate-800 mb-6 tracking-tight relative z-10">{currentWord.translation}</p>
+                <div className="flex gap-4 relative z-10">
+                  <Quote size={28} className="text-indigo-200 shrink-0" />
+                  <p className="text-2xl italic text-slate-500 leading-relaxed font-medium">"{currentWord.example}"</p>
                 </div>
               </div>
-              <div className="flex gap-4">
-                <button disabled={currentIndex === 0} onClick={() => setCurrentIndex(currentIndex - 1)} className="p-5 rounded-2xl border border-slate-100 text-slate-300 hover:text-slate-600 disabled:opacity-20 transition-all"><ChevronLeft size={24} /></button>
-                <button onClick={handleNext} className="flex-1 py-5 rounded-2xl bg-slate-900 text-white font-black text-lg hover:bg-indigo-700 shadow-xl transition-all">{currentIndex === words.length - 1 ? '我记住了，完成学习' : '我记住了，下一个'} <ChevronRight size={20} className="inline ml-1" /></button>
+              <div className="flex gap-6">
+                <button disabled={currentIndex === 0} onClick={() => setCurrentIndex(currentIndex - 1)} className="p-7 rounded-[2rem] border border-slate-100 text-slate-300 hover:text-slate-800 hover:bg-slate-50 disabled:opacity-20 transition-all active:scale-95"><ChevronLeft size={32} /></button>
+                <button onClick={handleNext} className="flex-1 py-7 rounded-[2rem] bg-slate-900 text-white font-black text-xl hover:bg-indigo-700 shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-4">{currentIndex === words.length - 1 ? '全组达成，进入复习' : '我记住了，继续进阶'} <ChevronRight size={28} /></button>
               </div>
             </div>
           </div>
 
-          <div className="lg:col-span-5 space-y-6">
-            <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-              <div className="flex bg-slate-50/50 p-2 gap-2">
+          <div className="lg:col-span-5 space-y-8 animate-slide-up delay-200">
+            <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden flex flex-col">
+              <div className="flex bg-slate-50/50 p-3 gap-3">
                 {[
-                  { id: 'systematic', label: '变形体系', icon: <GitBranch size={16} /> },
-                  { id: 'memory', label: '拓展关联', icon: <Search size={16} /> },
-                  { id: 'info', label: '剖析记忆', icon: <Layers size={16} /> }
+                  { id: 'systematic', label: '变形体系', icon: <GitBranch size={18} /> },
+                  { id: 'memory', label: '拓展关联', icon: <Search size={18} /> },
+                  { id: 'info', label: '结构剖析', icon: <Layers size={18} /> }
                 ].map(tab => (
-                  <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === tab.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>{tab.icon} {tab.label}</button>
+                  <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase transition-all ${activeTab === tab.id ? 'bg-white text-indigo-600 shadow-xl scale-105 border border-indigo-50' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}>{tab.icon} {tab.label}</button>
                 ))}
               </div>
 
-              <div className="p-8 space-y-6 overflow-y-auto max-h-[700px]">
+              <div className="p-10 space-y-8 overflow-y-auto max-h-[800px] scrollbar-hide">
                 {activeTab === 'systematic' && (
-                  <div className="space-y-6 animate-in fade-in slide-in-from-right-2">
-                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><GitBranch size={14} /> 变形分析 (Forms)</h4>
-                    <div className="space-y-6">
+                  <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3"><GitBranch size={16} /> 变形逻辑深度分析</h4>
+                    <div className="space-y-8">
                       {currentWord.forms?.map((f, i) => (
-                        <div key={i} className="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100/50 space-y-3">
+                        <div key={i} className="bg-indigo-50/30 p-8 rounded-[2.5rem] border border-indigo-100/50 space-y-4 hover:bg-indigo-50/50 transition-colors group">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3"><span className="font-black text-lg text-indigo-700">{f.form}</span><button onClick={() => playPronunciation(f.form)} className="p-1 text-indigo-400 hover:text-indigo-600"><Volume2 size={12} /></button></div>
-                            <span className="text-[10px] font-bold text-indigo-400 bg-white px-2 py-0.5 rounded-full">{f.pos}</span>
+                            <div className="flex items-center gap-4"><span className="font-black text-2xl text-indigo-700 tracking-tight">{f.form}</span><button onClick={() => playPronunciation(f.form)} className="p-2 rounded-xl bg-white shadow-md text-indigo-400 hover:text-indigo-600 hover:scale-110 active:scale-90 transition-all"><Volume2 size={16} /></button></div>
+                            <span className="text-[10px] font-black text-indigo-400 bg-white px-3 py-1 rounded-full shadow-sm">{f.pos}</span>
                           </div>
-                          <div className="text-xs text-slate-400 font-mono">/{f.phonetic}/ • <span className="font-bold text-slate-700">{f.meaning}</span></div>
-                          <p className="text-xs text-slate-500 italic bg-white/60 p-3 rounded-xl">"{f.example}"</p>
-                          <div className="text-[10px] text-indigo-400 leading-relaxed italic"><span className="font-black">变形逻辑:</span> {f.derivationReason}</div>
+                          <div className="text-sm text-slate-400 font-mono tracking-wide">/{f.phonetic}/ • <span className="font-black text-slate-800">{f.meaning}</span></div>
+                          <p className="text-sm text-slate-500 italic bg-white/60 p-5 rounded-2xl border border-indigo-50 shadow-inner">"{f.example}"</p>
+                          <div className="text-[11px] text-indigo-500 leading-relaxed font-bold bg-white/40 px-5 py-3 rounded-2xl border border-indigo-50/50 italic"><span className="font-black text-indigo-700 mr-2">变形依据:</span> {f.derivationReason}</div>
                         </div>
                       ))}
                     </div>
@@ -350,30 +361,30 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
                 )}
                 
                 {activeTab === 'memory' && (
-                  <div className="space-y-8 animate-in fade-in slide-in-from-right-2">
-                    <section className="space-y-4">
-                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Search size={14} /> 核心关联词 (Syn/Ant)</h4>
-                      <div className="space-y-4">
+                  <div className="space-y-10 animate-in fade-in slide-in-from-right-4">
+                    <section className="space-y-6">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3"><Search size={16} /> 核心关联词网络</h4>
+                      <div className="grid grid-cols-1 gap-4">
                         {currentWord.relatedWords?.synonym?.map((s, i) => (
-                          <div key={i} className="bg-emerald-50/30 p-4 rounded-xl border border-emerald-100/50">
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center gap-2"><span className="font-bold text-emerald-700">{s.word}</span><button onClick={() => playPronunciation(s.word)} className="text-emerald-300"><Volume2 size={10} /></button></div>
-                              <span className="text-[9px] font-black text-emerald-400 uppercase">Synonym</span>
+                          <div key={i} className="bg-emerald-50/30 p-6 rounded-[2rem] border border-emerald-100/50 group hover:bg-emerald-50/50 transition-colors">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-3"><span className="font-black text-lg text-emerald-800">{s.word}</span><button onClick={() => playPronunciation(s.word)} className="text-emerald-400 hover:scale-110 transition-all"><Volume2 size={14} /></button></div>
+                              <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest bg-white px-3 py-1 rounded-full">Synonym</span>
                             </div>
-                            <p className="text-xs text-slate-600"><span className="font-mono text-[10px] opacity-60">/{s.phonetic}/</span> {s.meaning}</p>
-                            <p className="text-[10px] text-slate-400 italic mt-1">"{s.example}"</p>
+                            <p className="text-sm text-slate-600"><span className="font-mono text-[11px] opacity-60 mr-2">/{s.phonetic}/</span> {s.meaning}</p>
+                            <p className="text-[11px] text-slate-400 italic mt-2 bg-white/30 p-2 rounded-lg leading-relaxed">"{s.example}"</p>
                           </div>
                         ))}
                       </div>
                     </section>
-                    <section className="space-y-4">
-                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Link size={14} /> 场景搭配 (Phrases)</h4>
-                      <div className="space-y-3">
+                    <section className="space-y-6">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3"><Link size={16} /> 高频固定搭配</h4>
+                      <div className="grid grid-cols-1 gap-4">
                         {currentWord.phrases?.map((p, i) => (
-                          <div key={i} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                             <h5 className="font-black text-slate-700 text-sm mb-1">{p.phrase}</h5>
-                             <p className="text-xs text-indigo-600 font-bold mb-1">{p.translation}</p>
-                             <p className="text-[10px] text-slate-400 italic leading-tight">"{p.example}"</p>
+                          <div key={i} className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 hover:shadow-inner transition-shadow">
+                             <h5 className="font-black text-slate-800 text-lg mb-1 tracking-tight">{p.phrase}</h5>
+                             <p className="text-xs text-indigo-600 font-black mb-3">{p.translation}</p>
+                             <div className="text-[11px] text-slate-400 italic leading-relaxed bg-white/50 p-3 rounded-xl">"{p.example}"</div>
                           </div>
                         ))}
                       </div>
@@ -382,23 +393,42 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
                 )}
 
                 {activeTab === 'info' && (
-                  <div className="space-y-6 animate-in fade-in slide-in-from-right-2">
-                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-6">
-                       <div><span className="text-[10px] font-black text-slate-400 uppercase block mb-2">词根词缀剖析</span><div className="flex gap-2"><span className="bg-white px-3 py-1.5 rounded-xl text-sm font-bold border border-slate-100">{currentWord.roots}</span><span className="text-slate-300 self-center">+</span><span className="bg-white px-3 py-1.5 rounded-xl text-sm font-bold border border-slate-100">{currentWord.affixes}</span></div></div>
-                       <div><span className="text-[10px] font-black text-slate-400 uppercase block mb-2">语源故事</span><p className="text-xs text-slate-500 italic leading-relaxed">{currentWord.etymology}</p></div>
-                       <div className="bg-amber-50 p-4 rounded-xl border border-amber-100"><span className="text-[10px] font-black text-amber-600 uppercase block mb-1">记忆窍门</span><p className="text-xs text-amber-900 leading-relaxed font-bold">{currentWord.mnemonic}</p></div>
+                  <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+                    <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 space-y-10 relative">
+                       <div className="absolute top-6 right-6 text-indigo-100"><Info size={80} /></div>
+                       <div className="relative z-10">
+                         <span className="text-[10px] font-black text-slate-400 uppercase block mb-4 tracking-[0.3em]">词根词缀透视</span>
+                         <div className="flex flex-wrap gap-4">
+                           <div className="bg-white px-5 py-3 rounded-2xl text-lg font-black border border-slate-100 shadow-sm flex items-center gap-2"><span className="text-indigo-600 text-[10px]">ROOT</span> {currentWord.roots}</div>
+                           <div className="text-slate-300 self-center text-2xl">+</div>
+                           <div className="bg-white px-5 py-3 rounded-2xl text-lg font-black border border-slate-100 shadow-sm flex items-center gap-2"><span className="text-purple-600 text-[10px]">AFFIX</span> {currentWord.affixes}</div>
+                         </div>
+                       </div>
+                       <div className="relative z-10">
+                         <span className="text-[10px] font-black text-slate-400 uppercase block mb-4 tracking-[0.3em]">语源脉络</span>
+                         <p className="text-sm text-slate-500 italic leading-relaxed font-medium bg-white/50 p-6 rounded-3xl border border-slate-100">{currentWord.etymology}</p>
+                       </div>
+                       <div className="relative z-10 bg-amber-50 p-8 rounded-[2.5rem] border-2 border-amber-100 shadow-xl animate-float">
+                         <span className="text-[10px] font-black text-amber-600 uppercase block mb-3 tracking-[0.3em] flex items-center gap-2"><Puzzle size={14} /> 记忆锚点</span>
+                         <p className="text-lg text-amber-900 leading-tight font-black">{currentWord.mnemonic}</p>
+                         <p className="text-xs text-amber-700/60 mt-4 italic font-bold">"{currentWord.memoryTip}"</p>
+                       </div>
                     </div>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="bg-slate-900 p-8 rounded-[2rem] text-white shadow-xl space-y-6">
-              <div className="flex items-center justify-between"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">学习进度周期</span><Calendar size={16} className="text-indigo-400" /></div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs font-bold"><span>当前记忆强度</span><span className="text-indigo-400">{Math.round(((currentIndex + 1) / words.length) * 100)}%</span></div>
-                <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden"><div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${((currentIndex + 1) / words.length) * 100}%` }} /></div>
-                <p className="text-[10px] text-slate-500 mt-2 italic">系统已锁定今日学习词组。建议学习 5 个词后立即进入互动复现模式。</p>
+            <div className="bg-slate-900 p-10 rounded-[3rem] text-white shadow-2xl space-y-8 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:rotate-12 transition-transform duration-1000"><Zap size={150} /></div>
+              <div className="flex items-center justify-between relative z-10">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">AI 学习引擎监控</span>
+                <Calendar size={20} className="text-indigo-400 animate-pulse" />
+              </div>
+              <div className="space-y-4 relative z-10">
+                <div className="flex justify-between text-sm font-black"><span>当前记忆负载</span><span className="text-indigo-400">{Math.round(((currentIndex + 1) / words.length) * 100)}%</span></div>
+                <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden border border-white/5"><div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000 shadow-[0_0_15px_rgba(99,102,241,0.5)]" style={{ width: `${((currentIndex + 1) / words.length) * 100}%` }} /></div>
+                <p className="text-[11px] text-slate-500 mt-4 italic leading-relaxed font-medium">系统已针对您的 0 基础定制化该词组。完成全组 5 个词后，建议立即通过“互动复现”加深皮层映射。</p>
               </div>
             </div>
           </div>

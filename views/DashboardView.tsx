@@ -117,4 +117,48 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                    <Clock size={14} className="text-rose-400" />
                 </div>
                 <h4 className="font-bold text-slate-800 mb-1">本组学习词汇</h4>
-                <p className="text-[10px] text-rose-
+                <p className="text-[10px] text-rose-600 font-bold uppercase tracking-tight">记忆强度: 35% • 待开启互动复习</p>
+                <button 
+                  onClick={() => onNavigate(LearningModule.VOCABULARY)}
+                  className="mt-4 w-full py-3 bg-rose-600 text-white rounded-xl text-xs font-black hover:bg-rose-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-200"
+                >
+                  进入复习模式 <ChevronRight size={14} />
+                </button>
+              </div>
+              
+              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 opacity-60">
+                 <div className="flex justify-between items-center mb-2">
+                   <span className="text-xs font-black text-slate-400 uppercase">后续计划</span>
+                 </div>
+                 <h4 className="font-bold text-slate-400 mb-1 italic">语法深度训练</h4>
+                 <p className="text-[10px] text-slate-400">系统将在词汇掌握后解锁</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Quick Stats */}
+          <section className="bg-slate-900 p-10 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
+             <div className="relative z-10 flex flex-col gap-6">
+               <div className="flex items-center justify-between">
+                 <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">今日数据</h4>
+                 <Zap className="text-indigo-400" size={20} />
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white/5 p-4 rounded-xl border border-white/5 text-center">
+                    <span className="text-[10px] text-slate-400 block mb-1 uppercase">已学</span>
+                    <span className="text-2xl font-black">5 词</span>
+                  </div>
+                  <div className="bg-white/5 p-4 rounded-xl border border-white/5 text-center">
+                    <span className="text-[10px] text-slate-400 block mb-1 uppercase">连胜</span>
+                    <span className="text-2xl font-black">1 天</span>
+                  </div>
+               </div>
+             </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DashboardView;

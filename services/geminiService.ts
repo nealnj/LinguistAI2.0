@@ -12,7 +12,7 @@ export const generateVocabulary = async (topic: string = 'beginner') => {
     - phrases: ARRAY of {phrase, translation, example}
     - forms: ARRAY of {form, phonetic, pos, meaning, example, derivationReason (why it changes this way)}
     - relatedWords: {synonym: ARRAY of {word, phonetic, meaning, example}, antonym: ARRAY of {word, phonetic, meaning, example}}
-    - visualPrompt: A clean, simple, minimalist visual description for an educational illustration of the word.
+    - visualPrompt: A cinematic, ultra-realistic description for a mnemonic aid photo. Include lighting, texture, and a clear focal point.
     Return strictly in JSON format.`,
     config: {
       responseMimeType: "application/json",
@@ -103,7 +103,7 @@ export const generateImage = async (prompt: string) => {
     contents: {
       parts: [
         {
-          text: `A clean, minimalist, high-contrast educational flat design illustration for: ${prompt}. Solid pastel background, no text, simple shapes.`,
+          text: `Professional high-quality realistic photography, 8k resolution, cinematic lighting, sharp focus, educational mnemonic context for: ${prompt}. Minimalistic studio setting, deep depth of field.`,
         },
       ],
     },
