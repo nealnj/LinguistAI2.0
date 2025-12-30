@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  BookOpen, Mic2, PenTool, LayoutDashboard, GraduationCap, Trophy, Menu, X, Sparkles, Zap, Stars, Brain, BookMarked, Clock, LogOut, User as UserIcon, Crown, ChevronRight, ShieldAlert, Settings, Globe, Radio, ShieldCheck, Lock, Ticket
+  BookOpen, Mic2, PenTool, LayoutDashboard, GraduationCap, Trophy, Menu, X, Sparkles, Zap, Stars, Brain, BookMarked, Clock, LogOut, Crown, ChevronRight, Settings, Globe, Radio, Ticket
 } from 'lucide-react';
 import { LearningModule, User } from './types';
 import DashboardView from './views/DashboardView';
@@ -20,16 +20,6 @@ import LoginView from './views/LoginView';
 import PaymentModal from './components/PaymentModal';
 import { logger } from './services/logger';
 
-declare global {
-  interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-  }
-  interface window {
-    aistudio?: AIStudio;
-  }
-}
-
 const formatSeconds = (s: number) => {
   const m = Math.floor(s / 60);
   const sec = s % 60;
@@ -46,41 +36,70 @@ const App: React.FC = () => {
   
   const pricing = logger.getPricingConfig();
   const discountedPrice = Math.round(pricing.originalAnnualPrice * pricing.discountRate);
+  
+  // 用于记录是否已经因为“时长耗尽”弹过窗了，防止每秒死循环弹窗
+  const paymentTriggeredRef = useRef(false);
 
   useEffect(() => {
     const checkAdmin = async () => {
       if (currentUser) {
         const adminStatus = await logger.isAdmin();
         setIsAdmin(adminStatus);
-      } else {
-        setIsAdmin(false);
       }
     };
     checkAdmin();
   }, [currentUser]);
 
+  // 核心统计与权限检查逻辑
   useEffect(() => {
     if (!currentUser || usageStats.isBanned) return;
+
     const usageInterval = setInterval(() => {
-      logger.updateUserUsage(1); 
+      // 只有在非 Pro 且非 Admin 状态下才真正累计计时（减少不必要的性能消耗）
       const status = logger.checkSubscription();
+      
+      if (!status.isPro && status.userType !== 'admin') {
+        logger.updateUserUsage(1); 
+      }
+      
       setUsageStats(status);
-      if (!status.isPro && !status.isPassActive && status.remainingFreeSecs <= 0) {
-        setShowPayment(true);
+
+      // 弹窗逻辑：
+      // 如果时长耗尽 && 不是Pro && 没有正在激活的体验票 && 之前没弹过 && 弹窗当前没开
+      if (status.remainingFreeSecs <= 0 && !status.isPro && !status.isPassActive) {
+        if (!paymentTriggeredRef.current && !showPayment) {
+          setShowPayment(true);
+          paymentTriggeredRef.current = true; // 标记已触发，防止重复
+        }
+      } else {
+        // 如果用户充值了或者有了时间，重置触发位
+        paymentTriggeredRef.current = false;
       }
     }, 1000);
+
     return () => clearInterval(usageInterval);
-  }, [currentUser, usageStats.isPro, usageStats.isPassActive, usageStats.isBanned]);
+  }, [currentUser, usageStats.isPro, usageStats.isBanned, showPayment]);
 
   const handleLoginSuccess = (autoShowPayment?: boolean) => {
     const user = logger.getCurrentUser();
     setCurrentUser(user);
     const status = logger.checkSubscription();
     setUsageStats(status);
-    if (autoShowPayment && !status.isPro && !status.isPassActive) setShowPayment(true);
+    if (autoShowPayment && !status.isPro && !status.isPassActive) {
+      setShowPayment(true);
+    }
   };
 
-  const handleLogout = () => { logger.logout(); setCurrentUser(null); setIsAdmin(false); };
+  const handleLogout = () => { 
+    logger.logout(); 
+    setCurrentUser(null); 
+    setIsAdmin(false); 
+    paymentTriggeredRef.current = false;
+  };
+
+  if (!currentUser) {
+    return <LoginView onLoginSuccess={handleLoginSuccess} />;
+  }
 
   const renderModule = () => {
     if (usageStats.isBanned) return <div className="p-12 text-center font-black text-rose-500">ACCOUNT SUSPENDED</div>;
@@ -122,15 +141,12 @@ const App: React.FC = () => {
     const colors = ['bg-indigo-500', 'bg-emerald-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-500', 'bg-slate-500'];
     const lastDigit = parseInt(phone.slice(-1)) || 0;
     const colorClass = colors[lastDigit % colors.length];
-    
     return (
       <div className={`${size} rounded-full flex items-center justify-center text-white font-black text-xs shadow-sm ${colorClass} border-2 border-white ring-1 ring-slate-100`}>
         {phone.charAt(0)}
       </div>
     );
   };
-
-  if (!currentUser) return <LoginView onLoginSuccess={handleLoginSuccess} />;
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans selection:bg-indigo-100">
@@ -154,11 +170,13 @@ const App: React.FC = () => {
                <button onClick={() => setShowPayment(true)} className="flex items-center gap-3 mb-3 w-full text-left hover:bg-white p-2 rounded-xl transition-all group border border-transparent hover:border-slate-100 hover:shadow-sm">
                  <div className="relative shrink-0">
                    {renderAvatar(currentUser.phone)}
-                   {(usageStats.isPro || isAdmin) && <div className="absolute -bottom-0.5 -right-0.5 bg-indigo-500 w-2.5 h-2.5 rounded-full border-2 border-white flex items-center justify-center"><Crown size={6} className="text-white" /></div>}
+                   {(usageStats.isPro || isAdmin) && <div className="absolute -bottom-0.5 -right-0.5 bg-indigo-500 w-2.5 h-2.5 rounded-full border-2 border-white flex items-center justify-center"><Trophy size={6} className="text-white" /></div>}
                  </div>
                  <div className="overflow-hidden flex-1">
                    <div className="text-[10px] font-black text-slate-800 truncate">{currentUser.phone}</div>
-                   <div className={`text-[8px] font-bold uppercase tracking-widest ${usageStats.isPro ? 'text-indigo-600' : isAdmin ? 'text-indigo-400' : 'text-amber-600'}`}>{isAdmin ? 'System Admin' : usageStats.isPro ? 'Pro Member' : 'Free Trial'}</div>
+                   <div className={`text-[8px] font-bold uppercase tracking-widest ${usageStats.userType === 'admin' ? 'text-indigo-400' : usageStats.userType === 'annual' ? 'text-indigo-600' : usageStats.userType === 'starter' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      {usageStats.userType === 'admin' ? 'System Admin' : usageStats.userType === 'annual' ? 'Pro Member' : usageStats.userType === 'starter' ? 'Starter Pack' : 'Free Trial'}
+                   </div>
                  </div>
                  <ChevronRight size={12} className="text-slate-300 shrink-0" />
                </button>
@@ -172,7 +190,7 @@ const App: React.FC = () => {
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 z-40">
           <h2 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" /> {menuItems.find(m => m.id === activeModule)?.label}</h2>
           <div className="flex items-center gap-6">
-            {!usageStats.isPro && !isAdmin && (
+            {!usageStats.isPro && usageStats.userType !== 'admin' && (
               <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${usageStats.isPassActive ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-amber-50 border-amber-100 text-amber-600'}`}>
                 {usageStats.isPassActive ? <Ticket size={14} className="animate-pulse" /> : <Clock size={14} />}
                 <span className="text-[9px] font-black uppercase tracking-widest">
@@ -181,7 +199,7 @@ const App: React.FC = () => {
               </div>
             )}
             
-            {!usageStats.isPro && !isAdmin && (
+            {!usageStats.isPro && usageStats.userType !== 'admin' && (
               <button onClick={() => setShowPayment(true)} className="bg-amber-100 text-amber-700 px-4 py-2 rounded-xl text-[10px] font-black border border-amber-200 uppercase tracking-widest flex items-center gap-2">
                 <Crown size={14} /> 升级 Pro (特惠 ¥{discountedPrice}/年)
               </button>
@@ -196,7 +214,7 @@ const App: React.FC = () => {
           {!usageStats.isBanned && <AIMentor activeModule={activeModule} />}
         </div>
       </main>
-      {showPayment && <PaymentModal onClose={() => setShowPayment(false)} />}
+      {showPayment && <PaymentModal onClose={() => { setShowPayment(false); paymentTriggeredRef.current = true; }} />}
     </div>
   );
 };

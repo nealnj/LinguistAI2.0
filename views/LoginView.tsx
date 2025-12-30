@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Sparkles, Phone, Lock, ArrowRight, UserCheck, ShieldCheck, Crown, Clock, Check, Zap, X, Info, Ticket, Globe, GraduationCap, FileUser, AlertCircle, Gift } from 'lucide-react';
+import { Sparkles, Phone, Lock, ArrowRight, UserCheck, ShieldCheck, Crown, Clock, Check, Zap, X, Ticket, GraduationCap, Globe, FileUser, AlertCircle, Gift } from 'lucide-react';
 import { logger } from '../services/logger';
 
 interface LoginViewProps {
@@ -18,9 +18,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const discountedPrice = Math.round(pricing.originalAnnualPrice * pricing.discountRate);
   const discountRateLabel = Math.round(pricing.discountRate * 10);
 
-  const validatePhone = (p: string) => {
-    return /^1[3-9]\d{9}$/.test(p);
-  };
+  const validatePhone = (p: string) => /^1[3-9]\d{9}$/.test(p);
 
   const handleStartSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,18 +28,21 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       return;
     }
     if (!validatePhone(phone)) {
-      setError('请输入真实有效的 11 位手机号码（如：138...）');
+      setError('请输入有效的 11 位手机号码');
       return;
     }
     setShowChoiceModal(true);
   };
 
-  const handleChoice = (type: 'free' | 'pass' | 'pro') => {
+  const handleChoice = (type: 'free' | 'pass' | 'starter') => {
     logger.registerOrLogin(phone, password);
     if (type === 'pass') {
       logger.activateFreePass();
+    } else if (type === 'starter') {
+      logger.activateStarterPack();
     }
     setShowChoiceModal(false);
+    // 如果是普通登录（free），则成功后自动弹一次付费框引导
     onLoginSuccess(type === 'free'); 
   };
 
@@ -146,7 +147,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Option 1: Express Pass */}
+                {/* 选项 1: 极速通行证 */}
                 <div className="p-8 rounded-[3rem] border-2 border-emerald-200 bg-emerald-50/20 flex flex-col justify-between hover:border-emerald-400 transition-all">
                   <div className="space-y-6">
                     <div className="flex items-center gap-3 text-emerald-600 font-black text-[10px] uppercase tracking-widest">
@@ -169,7 +170,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   </button>
                 </div>
 
-                {/* Option 2: Starter Pack */}
+                {/* 选项 2: 阶梯成长包 (5元 48h) */}
                 <div className="p-8 rounded-[3rem] border-2 border-indigo-100 bg-indigo-50/20 flex flex-col justify-between hover:border-indigo-300 transition-all">
                   <div className="space-y-6">
                     <div className="flex items-center gap-3 text-indigo-600 font-black text-[10px] uppercase tracking-widest">
@@ -185,21 +186,21 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     </ul>
                   </div>
                   <button 
-                    onClick={() => handleChoice('free')}
-                    className="mt-10 w-full py-5 border-2 border-indigo-600 text-indigo-600 rounded-2xl font-black text-sm hover:bg-indigo-600 hover:text-white transition-all shadow-lg"
+                    onClick={() => handleChoice('starter')}
+                    className="mt-10 w-full py-5 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 transition-all shadow-lg"
                   >
-                    ¥5 进阶学习
+                    ¥5 立即开通
                   </button>
                 </div>
 
-                {/* Option 3: Pro Membership (Revamped) */}
+                {/* 选项 3: 年度订阅 (年度 Pro) */}
                 <div className="p-8 rounded-[3rem] border-4 border-indigo-600 bg-slate-900 text-white flex flex-col justify-between relative overflow-hidden shadow-2xl scale-105">
                   <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[9px] font-black px-6 py-2 uppercase tracking-widest rounded-bl-3xl flex items-center gap-2">
                     <Gift size={10} /> {discountRateLabel}折特惠
                   </div>
                   <div className="space-y-6">
                     <div className="flex items-center gap-3 text-amber-400 font-black text-[10px] uppercase tracking-widest">
-                      <Crown size={16} /> 尊享订阅
+                      <Crown size={16} /> 尊享年度订阅
                     </div>
                     <div className="flex flex-col">
                       <div className="flex items-baseline gap-1">
@@ -226,7 +227,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     onClick={() => handleChoice('free')}
                     className="mt-10 w-full py-5 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 shadow-xl shadow-indigo-500/20 transition-all active:scale-95"
                   >
-                    立即开启 PRO 进化
+                    立即开启 Pro 进化
                   </button>
                 </div>
               </div>
