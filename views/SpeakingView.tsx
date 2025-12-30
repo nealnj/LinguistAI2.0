@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, Modality } from '@google/genai';
+import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
 import { getSpeechAudio } from '../services/geminiService';
 import { 
   Mic, 
@@ -22,6 +22,19 @@ import {
   AlertTriangle,
   Clock
 } from 'lucide-react';
+
+/**
+ * Manually implement base64 encoding for raw bytes as per @google/genai guidelines.
+ * This avoids potential stack size issues with String.fromCharCode(...bytes).
+ */
+function encode(bytes: Uint8Array) {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
 
 function decode(base64: string) {
   const binaryString = atob(base64);
@@ -129,7 +142,7 @@ const SpeakingView: React.FC = () => {
         callbacks: {
           onopen: () => {
             setSessionActive(true);
-            // 启动成本倒计时（可视化消耗，提醒用户珍惜时长，提升付费感）
+            // 启动成本倒计时
             timerRef.current = setInterval(() => setSessionTimer(t => t + 1), 1000);
             
             const source = inputAudioContext.createMediaStreamSource(stream);
@@ -142,16 +155,18 @@ const SpeakingView: React.FC = () => {
               const int16 = new Int16Array(l);
               for (let i = 0; i < l; i++) int16[i] = inputData[i] * 32768;
               const pcmData = new Uint8Array(int16.buffer);
+              // CRITICAL: Use sessionPromise to ensure connection is resolved before sending data.
               sessionPromise.then(session => {
-                session.sendRealtimeInput({ media: { data: btoa(String.fromCharCode(...pcmData)), mimeType: 'audio/pcm;rate=16000' } });
+                session.sendRealtimeInput({ media: { data: encode(pcmData), mimeType: 'audio/pcm;rate=16000' } });
               });
             };
             source.connect(scriptProcessor);
             scriptProcessor.connect(inputAudioContext.destination);
           },
-          onmessage: async (message: any) => {
+          onmessage: async (message: LiveServerMessage) => {
             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (base64Audio) {
+              // Exact scheduling to avoid gaps in audio playback.
               nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputAudioContext.currentTime);
               const audioBuffer = await decodeAudioData(decode(base64Audio), outputAudioContext, 24000, 1);
               const source = outputAudioContext.createBufferSource();
@@ -181,8 +196,8 @@ const SpeakingView: React.FC = () => {
           outputAudioTranscription: {},
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
           systemInstruction: activeTab === 'chat' 
-            ? "Silicon Valley Interviewer. Be concise and challenging. JSON feedback only if asked."
-            : "Precision Shadowing Coach. Rate 0-100."
+            ? "Silicon Valley Interviewer. Be concise and challenging."
+            : "Precision Shadowing Coach."
         }
       });
       activeSessionRef.current = await sessionPromise;

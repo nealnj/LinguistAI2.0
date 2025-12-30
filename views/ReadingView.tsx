@@ -27,7 +27,10 @@ import {
   ArrowRight,
   Trophy,
   Target,
-  Zap
+  Zap,
+  // Added icons for sources
+  Link,
+  ExternalLink
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -70,7 +73,8 @@ async function decodeAudioData(
 const ReadingView: React.FC = () => {
   const [viewState, setViewState] = useState<'setup' | 'reading'>('setup');
   const [config, setConfig] = useState({ category: 'AI & Future Tech' });
-  const [article, setArticle] = useState<ReadingArticle | null>(null);
+  // Updated state to include sources
+  const [article, setArticle] = useState<(ReadingArticle & { sources?: any[] }) | null>(null);
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState<string | null>(null);
   const [quizIndex, setQuizIndex] = useState(0);
@@ -355,7 +359,7 @@ const ReadingView: React.FC = () => {
               </p>
             </div>
 
-            <div className="mt-16 pt-10 border-t border-slate-50 flex items-center justify-between">
+            <div className="mt-16 pt-10 border-t border-slate-50 flex items-center justify-between flex-wrap gap-4">
               <button 
                 onClick={() => playText(article.content)}
                 className={`flex items-center gap-3 px-10 py-5 rounded-2xl font-black transition-all shadow-xl ${
@@ -368,6 +372,20 @@ const ReadingView: React.FC = () => {
                 <Target size={16} className="text-indigo-200" /> Syllabus Mapping • Lvl {progress.currentLevel}
               </div>
             </div>
+
+            {/* Added Section for Sources as required by Gemini search grounding rules */}
+            {article.sources && article.sources.length > 0 && (
+              <div className="mt-8 pt-6 border-t border-slate-50">
+                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-4"><Link size={14} /> 引用来源 (Sources)</h4>
+                 <div className="flex flex-wrap gap-3">
+                   {article.sources.map((source: any, i: number) => (
+                     <a key={i} href={source.web?.uri} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100 text-[9px] font-bold text-indigo-600 hover:bg-white hover:shadow-sm transition-all flex items-center gap-2">
+                       <ExternalLink size={10} /> {source.web?.title || 'Source'}
+                     </a>
+                   ))}
+                 </div>
+              </div>
+            )}
           </div>
 
           {/* Quiz Section */}

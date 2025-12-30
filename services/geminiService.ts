@@ -8,7 +8,6 @@ const PRO_TXT = 'gemini-3-pro-preview';
 const IMAGE_GEN = 'gemini-2.5-flash-image';
 const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
 
-// Internal helper for retrying AI calls
 async function aiCall<T>(fn: (ai: GoogleGenAI) => Promise<T>, retries = 2): Promise<T> {
   const apiKey = process.env.API_KEY;
   const ai = new GoogleGenAI({ apiKey });
@@ -24,20 +23,18 @@ async function aiCall<T>(fn: (ai: GoogleGenAI) => Promise<T>, retries = 2): Prom
   }
 }
 
-// Utility to safely parse JSON from model responses
 const safeParse = (jsonStr: string, fallback: any) => {
   try {
     const cleaned = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
     const data = JSON.parse(cleaned);
     if (data && typeof data === 'object') {
       if (Array.isArray(fallback) && !Array.isArray(data)) return fallback;
-      if (!Array.isArray(fallback) && typeof fallback === 'object') {
-        Object.keys(fallback).forEach(key => {
-          if (Array.isArray(fallback[key]) && !Array.isArray(data[key])) {
-            data[key] = []; 
-          }
-        });
-      }
+      // 深度检查对象属性是否符合 fallback 的数组预期
+      Object.keys(fallback).forEach(key => {
+        if (Array.isArray(fallback[key]) && !Array.isArray(data[key])) {
+          data[key] = fallback[key];
+        }
+      });
     }
     return data || fallback;
   } catch {
@@ -45,11 +42,10 @@ const safeParse = (jsonStr: string, fallback: any) => {
   }
 };
 
-// Generates vocabulary words based on learner level
 export const generateVocabulary = async (level: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: PRO_TXT,
+      model: FLASH_TXT, // 切换到 Flash 以提升响应速度
       contents: `ACT AS AN ACADEMIC LINGUIST. Generate 5 core academic words for ${level}. 
       Provide accurate IPA, morphological forms, and sentence structure analysis.`,
       config: { 
@@ -88,19 +84,10 @@ export const generateVocabulary = async (level: string) => {
                   required: ['form', 'pos', 'phonetic', 'meaning', 'example', 'derivationReason']
                 }
               },
-              relatedWords: {
-                type: Type.OBJECT,
-                properties: {
-                  synonym: {
-                    type: Type.ARRAY,
-                    items: { type: Type.OBJECT, properties: { word: { type: Type.STRING }, phonetic: { type: Type.STRING }, meaning: { type: Type.STRING }, example: { type: Type.STRING } } }
-                  }
-                }
-              },
               roots: { type: Type.STRING },
               affixes: { type: Type.STRING }
             },
-            required: ['word', 'phonetic', 'translation', 'pos', 'example', 'exampleStructure', 'mnemonic', 'forms', 'relatedWords', 'roots', 'affixes']
+            required: ['word', 'phonetic', 'translation', 'pos', 'example', 'exampleStructure', 'mnemonic', 'forms', 'roots', 'affixes']
           }
         }
       }
@@ -109,12 +96,11 @@ export const generateVocabulary = async (level: string) => {
   });
 };
 
-// Generates a grammar lesson for a specific topic
 export const generateGrammarLesson = async (topic: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: PRO_TXT,
-      contents: `Create a grammar lesson for: "${topic}".`,
+      model: FLASH_TXT,
+      contents: `Create a comprehensive grammar lesson for: "${topic}".`,
       config: { 
         responseMimeType: "application/json",
         responseSchema: {
@@ -127,11 +113,33 @@ export const generateGrammarLesson = async (topic: string) => {
               type: Type.ARRAY,
               items: {
                 type: Type.OBJECT,
-                properties: { sentence: { type: Type.STRING }, sentenceType: { type: Type.STRING }, analysis: { type: Type.OBJECT, properties: { subject: { type: Type.STRING }, verb: { type: Type.STRING }, object: { type: Type.STRING }, others: { type: Type.STRING } } }, explanation: { type: Type.STRING }, collocationTip: { type: Type.STRING } },
+                properties: { 
+                  sentence: { type: Type.STRING }, 
+                  sentenceType: { type: Type.STRING }, 
+                  analysis: { 
+                    type: Type.OBJECT, 
+                    properties: { 
+                      subject: { type: Type.STRING }, 
+                      verb: { type: Type.STRING }, 
+                      object: { type: Type.STRING }, 
+                      others: { type: Type.STRING } 
+                    },
+                    required: ['subject', 'verb', 'object', 'others']
+                  }, 
+                  explanation: { type: Type.STRING }, 
+                  collocationTip: { type: Type.STRING } 
+                },
                 required: ['sentence', 'sentenceType', 'analysis', 'explanation']
               }
             },
-            rules: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, content: { type: Type.STRING } }, required: ['title', 'content'] } }
+            rules: { 
+              type: Type.ARRAY, 
+              items: { 
+                type: Type.OBJECT, 
+                properties: { title: { type: Type.STRING }, content: { type: Type.STRING } }, 
+                required: ['title', 'content'] 
+              } 
+            }
           },
           required: ['title', 'concept', 'analogy', 'structureBreakdown', 'rules']
         }
@@ -141,19 +149,47 @@ export const generateGrammarLesson = async (topic: string) => {
   });
 };
 
-// Generates a reading article with grounding
-export const generateReadingArticle = async (category: string, progress: any) => {
+export const generateLearningPlan = async (goal: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: PRO_TXT,
-      contents: `Latest professional news article in ${category} for Level ${progress.currentLevel}. Bilingual.`,
-      config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
+      model: FLASH_TXT,
+      contents: `Strategic learning roadmap for: ${goal}.`,
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              stage: { type: Type.STRING },
+              focus: { 
+                type: Type.ARRAY, 
+                items: { type: Type.STRING }
+              }
+            },
+            required: ['stage', 'focus']
+          }
+        }
+      }
     });
-    return safeParse(response.text, { title: "", chineseTitle: "", content: "", keyWords: [], questions: [] });
+    return safeParse(response.text, []);
   });
 };
 
-// Generates audio for text using TTS model
+export const generateReadingArticle = async (category: string, progress: any) => {
+  return aiCall(async (ai) => {
+    const response = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Latest professional news article in ${category} for Level ${progress.currentLevel}. Bilingual.`,
+      config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
+    });
+    // Extract sources for display as required by Gemini API guidelines.
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const data = safeParse(response.text, { title: "", chineseTitle: "", content: "", keyWords: [], questions: [] });
+    return { ...data, sources };
+  });
+};
+
 export const getSpeechAudio = async (text: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -168,7 +204,6 @@ export const getSpeechAudio = async (text: string) => {
   });
 };
 
-// Generates an image using nano banana model
 export const generateImage = async (prompt: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -182,48 +217,17 @@ export const generateImage = async (prompt: string) => {
   });
 };
 
-// Analyzes writing standards against IELTS
 export const analyzeWriting = async (text: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: PRO_TXT,
-      contents: `Analyze writing standard against IELTS. JSON {score, feedback, corrections: [{original, suggested, reason}]}`,
+      contents: `Analyze writing standard against IELTS. JSON {score: number, feedback: string, corrections: [{original: string, suggested: string, reason: string}]}`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, { score: 0, feedback: "", corrections: [] });
   });
 };
 
-// Generates a strategic learning plan
-export const generateLearningPlan = async (goal: string) => {
-  return aiCall(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: FLASH_TXT,
-      contents: `Strategic learning roadmap for: ${goal}.`,
-      config: { 
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              stage: { type: Type.STRING, description: 'Title of the learning stage' },
-              focus: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING },
-                description: 'Key focus points for this stage'
-              }
-            },
-            required: ['stage', 'focus']
-          }
-        }
-      }
-    });
-    return safeParse(response.text, []);
-  });
-};
-
-// Generates mentor advice or chat response
 export const generateMentorAdvice = async (module: string, userMsg?: string) => {
   return aiCall(async (ai) => {
     const prompt = userMsg ? `User asks: ${userMsg}` : `Expert advice for module: ${module}.`;
@@ -232,19 +236,17 @@ export const generateMentorAdvice = async (module: string, userMsg?: string) => 
   });
 };
 
-// Generates a quiz based on user notes
 export const generateReviewQuiz = async (notes: any[]) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: PRO_TXT,
-      contents: `Quiz based on these notes: ${JSON.stringify(notes)}. JSON.`,
+      model: FLASH_TXT,
+      contents: `Quiz based on these notes: ${JSON.stringify(notes)}. JSON format questions.`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, []);
   });
 };
 
-// Gets exam strategies with basic text model
 export const getExamTips = async (type: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({ model: FLASH_TXT, contents: `Bilingual strategies for ${type} exam.` });
@@ -252,19 +254,20 @@ export const getExamTips = async (type: string) => {
   });
 };
 
-// Deeply analyzes a vision item with grounding
 export const analyzeVisionItem = async (topic: string, type: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: PRO_TXT,
+      model: FLASH_TXT,
       contents: `Deep analysis of ${type}: "${topic}". JSON {article_en, article_cn, vocab, structures}`,
       config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
     });
-    return safeParse(response.text, { article_en: "", article_cn: "", vocab: [], structures: [] });
+    // Extract sources for display as required by Gemini API guidelines.
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const data = safeParse(response.text, { article_en: "", article_cn: "", vocab: [], structures: [] });
+    return { ...data, sources };
   });
 };
 
-// Generates a personalized English resume
 export const generatePersonalizedResume = async (progress: any, country: string, specialization: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -275,7 +278,6 @@ export const generatePersonalizedResume = async (progress: any, country: string,
   });
 };
 
-// Fetches global trends with grounding
 export const generateVisionTrends = async () => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -289,11 +291,10 @@ export const generateVisionTrends = async () => {
   });
 };
 
-// Generates specific grammar quizzes
 export const generateGrammarQuiz = async (topic: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: PRO_TXT,
+      model: FLASH_TXT,
       contents: `Generate 3 grammar quiz for: "${topic}".`,
       config: { 
         responseMimeType: "application/json",
@@ -301,7 +302,16 @@ export const generateGrammarQuiz = async (topic: string) => {
           type: Type.ARRAY,
           items: {
             type: Type.OBJECT,
-            properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING } }, correctAnswer: { type: Type.NUMBER }, detailedAnalysis: { type: Type.OBJECT, properties: { logic: { type: Type.STRING }, structure: { type: Type.STRING }, collocations: { type: Type.STRING } }, required: ['logic', 'structure', 'collocations'] } },
+            properties: { 
+              question: { type: Type.STRING }, 
+              options: { type: Type.ARRAY, items: { type: Type.STRING } }, 
+              correctAnswer: { type: Type.INTEGER }, 
+              detailedAnalysis: { 
+                type: Type.OBJECT, 
+                properties: { logic: { type: Type.STRING }, structure: { type: Type.STRING }, collocations: { type: Type.STRING } }, 
+                required: ['logic', 'structure', 'collocations'] 
+              } 
+            },
             required: ['question', 'options', 'correctAnswer', 'detailedAnalysis']
           }
         }
@@ -311,12 +321,11 @@ export const generateGrammarQuiz = async (topic: string) => {
   });
 };
 
-// Generates global market insights using grounding
 export const generateGlobalInsights = async (country: string) => {
   const fallback = { market: {}, regions: [], demand: [], news: [], visa: [], evolution: [], sources: [] };
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: FLASH_TXT,
+      model: PRO_TXT,
       contents: `ACT AS AN ADVANCED CAREER DATA ANALYST. Analyze TODAY'S market for "${country}".`,
       config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
     });
@@ -325,7 +334,6 @@ export const generateGlobalInsights = async (country: string) => {
   });
 };
 
-// Analyzes user feedback and generates healing rules for Admin
 export const generateHealingStrategy = async (feedbacks: any[]) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
