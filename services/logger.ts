@@ -4,11 +4,6 @@ import { UserLogEntry, LearningModule, UserNote, ReadingProgress, MasterProgress
 const USERS_KEY = 'linguist_ai_users_registry';
 const CURRENT_USER_SESSION = 'linguist_ai_active_session';
 
-/**
- * 安全配置：管理员手机号的 SHA-256 哈希值
- * 原始号码：13776635859
- * 此哈希在 GitHub 开源环境下是安全的，无法被反向推导。
- */
 const ADMIN_HASH = "388d750c828236209581895a6f85108d1796d5811c7501a3765181775f0f353c";
 
 async function hashPhone(phone: string) {
@@ -26,9 +21,6 @@ const getUKey = (base: string) => {
 };
 
 export const logger = {
-  /**
-   * 异步校验管理员身份
-   */
   isAdmin: async (phone?: string): Promise<boolean> => {
     const target = phone || logger.getCurrentUser()?.phone;
     if (!target) return false;
@@ -64,13 +56,24 @@ export const logger = {
     return user;
   },
 
-  getCurrentUser: (): User | null => {
+  getCurrentUser: (): (User & { freePassExpiry?: number }) | null => {
     const data = localStorage.getItem(CURRENT_USER_SESSION);
     return data ? JSON.parse(data) : null;
   },
 
   logout: () => {
     localStorage.removeItem(CURRENT_USER_SESSION);
+  },
+
+  /**
+   * 激活 15 分钟极速通行证
+   */
+  activateFreePass: () => {
+    const user = logger.getCurrentUser();
+    if (!user) return;
+    // 权限截止时间 = 当前时间 + 15分钟
+    const expiry = Date.now() + 15 * 60 * 1000;
+    logger.updateUserStatus(user.phone, { freePassExpiry: expiry } as any);
   },
 
   updateUserUsage: (seconds: number) => {
@@ -89,18 +92,28 @@ export const logger = {
     }
   },
 
-  checkSubscription: (): { isPro: boolean; remainingFreeSecs: number; isBanned: boolean } => {
+  checkSubscription: (): { isPro: boolean; remainingFreeSecs: number; isBanned: boolean; isPassActive: boolean } => {
     const user = logger.getCurrentUser();
-    if (!user) return { isPro: false, remainingFreeSecs: 0, isBanned: false };
+    if (!user) return { isPro: false, remainingFreeSecs: 0, isBanned: false, isPassActive: false };
     
     const isPro = user.subExpiry > Date.now();
+    const isPassActive = (user.freePassExpiry || 0) > Date.now();
+    
     const today = new Date().toISOString().split('T')[0];
     const usedToday = user.dailyUsage[today] || 0;
-    const freeLimit = 30 * 60;
+    const freeLimit = 30 * 60; // 30分钟每日免费
+    
+    let remaining = Math.max(0, freeLimit - usedToday);
+    
+    // 通行证活跃时，优先显示通行证倒计时
+    if (isPassActive && !isPro) {
+      remaining = Math.floor(((user.freePassExpiry || 0) - Date.now()) / 1000);
+    }
     
     return {
       isPro,
-      remainingFreeSecs: Math.max(0, freeLimit - usedToday),
+      isPassActive,
+      remainingFreeSecs: remaining,
       isBanned: !!user.isBanned
     };
   },
@@ -125,10 +138,8 @@ export const logger = {
     const users = logger.getAllUsers();
     const today = new Date().toISOString().split('T')[0];
     const thisMonth = today.substring(0, 7);
-    
     const dau = users.filter(u => u.lastLoginDate === today).length;
     const mau = users.filter(u => u.lastLoginDate?.startsWith(thisMonth)).length;
-    
     return { total: users.length, dau, mau };
   },
 
@@ -143,10 +154,7 @@ export const logger = {
     const logs: UserLogEntry[] = JSON.parse(localStorage.getItem(key) || '[]');
     logs.push({ timestamp: Date.now(), module, action, detail });
     localStorage.setItem(key, JSON.stringify(logs));
-    
-    if (action === 'complete' || action === 'learn') {
-      logger.advanceMasterSkill(module);
-    }
+    if (action === 'complete' || action === 'learn') logger.advanceMasterSkill(module);
   },
 
   getMasterProgress: (): MasterProgress => {
@@ -174,7 +182,6 @@ export const logger = {
       [LearningModule.SPEAKING]: 'speaking',
       [LearningModule.WRITING]: 'writing'
     };
-
     const skill = skillMap[module];
     if (skill) {
       progress.skills[skill] += 1;
@@ -193,12 +200,7 @@ export const logger = {
   addNote: (note: Omit<UserNote, 'id' | 'timestamp' | 'reviewCount'>) => {
     const key = getUKey('notes');
     const notes: UserNote[] = JSON.parse(localStorage.getItem(key) || '[]');
-    const newNote: UserNote = {
-      ...note,
-      id: Math.random().toString(36).substr(2, 9),
-      timestamp: Date.now(),
-      reviewCount: 0
-    };
+    const newNote: UserNote = { ...note, id: Math.random().toString(36).substr(2, 9), timestamp: Date.now(), reviewCount: 0 };
     notes.push(newNote);
     localStorage.setItem(key, JSON.stringify(notes));
   },
@@ -216,10 +218,7 @@ export const logger = {
 
   getNotes: (): UserNote[] => JSON.parse(localStorage.getItem(getUKey('notes')) || '[]'),
   getLogs: (): UserLogEntry[] => JSON.parse(localStorage.getItem(getUKey(`logs`)) || '[]'),
-  getMistakes: (): UserLogEntry[] => {
-    const logs = logger.getLogs();
-    return logs.filter(l => l.action === 'mistake');
-  },
+  getMistakes: (): UserLogEntry[] => logger.getLogs().filter(l => l.action === 'mistake'),
   getReadingProgress: (category: string): ReadingProgress => {
     const key = getUKey('reading_progress');
     const allProgress: ReadingProgress[] = JSON.parse(localStorage.getItem(key) || '[]');
@@ -236,9 +235,7 @@ export const logger = {
       allProgress.push({ category, currentLevel: 1, difficulty: 'beginner', completedArticles: [articleTitle] });
     } else if (!allProgress[idx].completedArticles.includes(articleTitle)) {
       allProgress[idx].completedArticles.push(articleTitle);
-      if (allProgress[idx].completedArticles.length % 3 === 0 && allProgress[idx].currentLevel < 10) {
-        allProgress[idx].currentLevel += 1;
-      }
+      if (allProgress[idx].completedArticles.length % 3 === 0 && allProgress[idx].currentLevel < 10) allProgress[idx].currentLevel += 1;
     }
     localStorage.setItem(key, JSON.stringify(allProgress));
   },

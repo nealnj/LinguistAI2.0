@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  BookOpen, Mic2, PenTool, LayoutDashboard, GraduationCap, Trophy, Menu, X, Sparkles, Zap, Stars, Brain, BookMarked, Clock, LogOut, User as UserIcon, Crown, ChevronRight, ShieldAlert, Settings, Globe, Radio, ShieldCheck, Lock
+  BookOpen, Mic2, PenTool, LayoutDashboard, GraduationCap, Trophy, Menu, X, Sparkles, Zap, Stars, Brain, BookMarked, Clock, LogOut, User as UserIcon, Crown, ChevronRight, ShieldAlert, Settings, Globe, Radio, ShieldCheck, Lock, Ticket
 } from 'lucide-react';
 import { LearningModule, User } from './types';
 import DashboardView from './views/DashboardView';
@@ -30,6 +30,12 @@ declare global {
   }
 }
 
+const formatSeconds = (s: number) => {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+};
+
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(logger.getCurrentUser());
   const [isAdmin, setIsAdmin] = useState(false);
@@ -52,36 +58,24 @@ const App: React.FC = () => {
   }, [currentUser]);
 
   useEffect(() => {
-    const checkKey = async () => {
-      if (window.aistudio) {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        if (!hasKey) {
-          if (activeModule === LearningModule.VISION || activeModule === LearningModule.GLOBAL_CAREER) {
-             console.warn("High-quality model requires an authorized API Key.");
-          }
-        }
-      }
-    };
-    checkKey();
-  }, [activeModule]);
-
-  useEffect(() => {
     if (!currentUser || usageStats.isBanned) return;
     const usageInterval = setInterval(() => {
-      logger.updateUserUsage(60); 
+      logger.updateUserUsage(1); 
       const status = logger.checkSubscription();
       setUsageStats(status);
-      if (!status.isPro && status.remainingFreeSecs <= 0) setShowPayment(true);
-    }, 60000);
+      if (!status.isPro && !status.isPassActive && status.remainingFreeSecs <= 0) {
+        setShowPayment(true);
+      }
+    }, 1000);
     return () => clearInterval(usageInterval);
-  }, [currentUser, usageStats.isPro, usageStats.isBanned]);
+  }, [currentUser, usageStats.isPro, usageStats.isPassActive, usageStats.isBanned]);
 
   const handleLoginSuccess = (autoShowPayment?: boolean) => {
     const user = logger.getCurrentUser();
     setCurrentUser(user);
     const status = logger.checkSubscription();
     setUsageStats(status);
-    if (autoShowPayment && !status.isPro) setShowPayment(true);
+    if (autoShowPayment && !status.isPro && !status.isPassActive) setShowPayment(true);
   };
 
   const handleLogout = () => { logger.logout(); setCurrentUser(null); setIsAdmin(false); };
@@ -148,7 +142,7 @@ const App: React.FC = () => {
                  </div>
                  <div className="overflow-hidden flex-1">
                    <div className="text-[10px] font-black text-slate-800 truncate">{currentUser.phone}</div>
-                   <div className={`text-[8px] font-bold uppercase tracking-widest ${usageStats.isPro ? 'text-indigo-600' : 'text-amber-600'}`}>{usageStats.isPro ? 'Pro Member' : 'Free Trial'}</div>
+                   <div className={`text-[8px] font-bold uppercase tracking-widest ${usageStats.isPro ? 'text-indigo-600' : 'text-amber-600'}`}>{usageStats.isPro ? 'Pro Member' : usageStats.isPassActive ? '15m Pass Active' : 'Free Trial'}</div>
                  </div>
                  <ChevronRight size={12} className="text-slate-300" />
                </button>
@@ -162,10 +156,14 @@ const App: React.FC = () => {
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 z-40">
           <h2 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" /> {menuItems.find(m => m.id === activeModule)?.label}</h2>
           <div className="flex items-center gap-6">
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${isSecure ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
-               <ShieldCheck size={14} className={isSecure ? 'animate-pulse' : ''} />
-               <span className="text-[9px] font-black uppercase tracking-widest">{isSecure ? 'Secure Sync Active' : 'Security Alert'}</span>
-            </div>
+            {!usageStats.isPro && (
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${usageStats.isPassActive ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-amber-50 border-amber-100 text-amber-600'}`}>
+                {usageStats.isPassActive ? <Ticket size={14} className="animate-pulse" /> : <Clock size={14} />}
+                <span className="text-[9px] font-black uppercase tracking-widest">
+                  {usageStats.isPassActive ? 'Express Pass' : 'Daily Free'}: {formatSeconds(usageStats.remainingFreeSecs)}
+                </span>
+              </div>
+            )}
             
             {!usageStats.isPro && <button onClick={() => setShowPayment(true)} className="bg-amber-100 text-amber-700 px-4 py-2 rounded-xl text-[10px] font-black border border-amber-200 uppercase tracking-widest flex items-center gap-2"><Crown size={14} /> 升级 Pro (¥200/月)</button>}
             <div className="bg-indigo-50 text-indigo-700 px-4 py-1.5 rounded-xl text-[10px] font-black border border-indigo-100 uppercase tracking-widest">Linguist Prime</div>

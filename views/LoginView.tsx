@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Sparkles, Phone, Lock, ArrowRight, UserCheck, ShieldCheck, Crown, Clock, Check, Zap, X, Info } from 'lucide-react';
+import { Sparkles, Phone, Lock, ArrowRight, UserCheck, ShieldCheck, Crown, Clock, Check, Zap, X, Info, Ticket } from 'lucide-react';
 import { logger } from '../services/logger';
 
 interface LoginViewProps {
@@ -22,10 +22,13 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     setShowChoiceModal(true);
   };
 
-  const handleChoice = (isProChoice: boolean) => {
+  const handleChoice = (type: 'free' | 'pass' | 'pro') => {
     logger.registerOrLogin(phone, password);
+    if (type === 'pass') {
+      logger.activateFreePass();
+    }
     setShowChoiceModal(false);
-    onLoginSuccess(isProChoice);
+    onLoginSuccess(type === 'free'); 
   };
 
   return (
@@ -97,8 +100,8 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       </div>
 
       {showChoiceModal && (
-        <div className="fixed inset-0 z-[300] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className="max-w-2xl w-full bg-white rounded-[3.5rem] shadow-2xl overflow-hidden relative animate-slide-up">
+        <div className="fixed inset-0 z-[300] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300 overflow-y-auto">
+          <div className="max-w-4xl w-full bg-white rounded-[3.5rem] shadow-2xl overflow-hidden relative animate-slide-up my-10">
             <button 
               onClick={() => setShowChoiceModal(false)}
               className="absolute top-6 right-6 p-2 bg-slate-100 hover:bg-slate-200 text-slate-400 rounded-full transition-all z-10"
@@ -106,78 +109,99 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               <X size={20} />
             </button>
 
-            <div className="p-10 md:p-14 space-y-10">
+            <div className="p-8 md:p-12 space-y-10">
               <div className="text-center space-y-4">
                 <div className="inline-flex bg-indigo-100 p-4 rounded-3xl text-indigo-600 mb-2">
                   <Zap size={32} />
                 </div>
-                <h2 className="text-3xl font-black text-slate-800 tracking-tighter">请选择您的学习方案</h2>
-                <p className="text-slate-500 font-medium">所有新用户均可享受灵活的阶梯式付费模式</p>
+                <h2 className="text-3xl font-black text-slate-800 tracking-tighter">定制您的学习体验</h2>
+                <p className="text-slate-500 font-medium text-sm">欢迎加入，请选择接下来的学习模式：</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* 方案 1: 体验套餐 (更新) */}
-                <div className="p-8 rounded-[2.5rem] border-2 border-indigo-200 bg-indigo-50/30 flex flex-col justify-between hover:border-indigo-300 transition-all relative">
-                  <div className="absolute top-4 right-4 text-indigo-500 animate-pulse"><Sparkles size={16}/></div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* 方案 1: 极速通行证 */}
+                <div className="p-6 rounded-[2.5rem] border-2 border-emerald-200 bg-emerald-50/30 flex flex-col justify-between hover:border-emerald-300 transition-all group">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 text-emerald-600 font-black text-[10px] uppercase tracking-widest">
+                      <Ticket size={14} /> 极速通行证 (Free)
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-black text-slate-900 tracking-tighter">0元</span>
+                      <span className="text-xs font-bold text-slate-400">/ 15分钟全开</span>
+                    </div>
+                    <p className="text-[10px] text-emerald-700 font-bold leading-relaxed">
+                      无需任何操作，立即解锁全应用自由浏览，极速体验顶级 AI 导师功能。
+                    </p>
+                    <ul className="space-y-2 pt-2">
+                      <li className="flex items-center gap-2 text-[10px] font-bold text-slate-600"><Check size={10} className="text-emerald-500" /> 15分钟高频全开体验</li>
+                      <li className="flex items-center gap-2 text-[10px] font-bold text-slate-600"><Check size={10} className="text-emerald-500" /> 深度调研 AI 导师能力</li>
+                    </ul>
+                  </div>
+                  <button 
+                    onClick={() => handleChoice('pass')}
+                    className="mt-8 w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
+                  >
+                    立即开启极速体验
+                  </button>
+                </div>
+
+                {/* 方案 2: 5元体验 */}
+                <div className="p-6 rounded-[2.5rem] border-2 border-indigo-200 bg-indigo-50/30 flex flex-col justify-between hover:border-indigo-300 transition-all relative">
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 text-indigo-600 font-black text-[10px] uppercase tracking-widest">
-                      <Clock size={14} /> 阶梯体验套餐
+                      <Clock size={14} /> 阶梯体验包
                     </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-3xl font-black text-slate-900 tracking-tighter">¥5</span>
                       <span className="text-xs font-bold text-slate-400">/ 2天全功能</span>
                     </div>
-                    <div className="bg-indigo-600/10 p-3 rounded-xl border border-indigo-600/10 flex items-start gap-2">
-                      <Info size={14} className="text-indigo-600 mt-0.5 shrink-0" />
-                      <p className="text-[10px] text-indigo-700 font-bold leading-relaxed">
-                        支持滚动续费，每 5 元延期 2 天，<span className="underline decoration-indigo-300">最长可连续体验 6 个月</span>。
-                      </p>
-                    </div>
-                    <ul className="space-y-3 pt-2">
-                      <li className="flex items-center gap-2 text-[11px] font-bold text-slate-600"><Check size={12} className="text-emerald-500" /> 2天全模块 100% 开放</li>
-                      <li className="flex items-center gap-2 text-[11px] font-bold text-slate-600"><Check size={12} className="text-emerald-500" /> 解锁 AI 口语与职场分析</li>
+                    <p className="text-[10px] text-indigo-700 font-bold leading-relaxed">
+                      深度内化知识，支持滚动续费，最长可滚动体验 6 个月。
+                    </p>
+                    <ul className="space-y-2 pt-2">
+                      <li className="flex items-center gap-2 text-[10px] font-bold text-slate-600"><Check size={10} className="text-emerald-500" /> 48小时高频学习</li>
+                      <li className="flex items-center gap-2 text-[10px] font-bold text-slate-600"><Check size={10} className="text-emerald-500" /> AI 口语无限对话</li>
                     </ul>
                   </div>
                   <button 
-                    onClick={() => handleChoice(true)}
-                    className="mt-10 w-full py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-2xl font-black text-sm hover:bg-indigo-600 hover:text-white transition-all shadow-lg shadow-indigo-100"
+                    onClick={() => handleChoice('free')}
+                    className="mt-8 w-full py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-2xl font-black text-xs hover:bg-indigo-600 hover:text-white transition-all shadow-lg shadow-indigo-100 active:scale-95"
                   >
-                    ¥5 开启体验
+                    ¥5 进阶体验
                   </button>
                 </div>
 
-                {/* 方案 2: Pro 版 */}
-                <div className="p-8 rounded-[2.5rem] border-2 border-slate-900 bg-slate-900 text-white flex flex-col justify-between relative overflow-hidden shadow-2xl">
+                {/* 方案 3: Pro 版 */}
+                <div className="p-6 rounded-[2.5rem] border-2 border-slate-900 bg-slate-900 text-white flex flex-col justify-between relative overflow-hidden shadow-2xl">
                   <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[8px] font-black px-4 py-1.5 uppercase tracking-widest rounded-bl-2xl">
-                    Ultimate Pro
+                    Ultimate
                   </div>
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 text-indigo-400 font-black text-[10px] uppercase tracking-widest">
-                      <Crown size={14} /> 尊享订阅 (Monthly)
+                      <Crown size={14} /> 尊享订阅
                     </div>
                     <div className="flex flex-col">
                       <div className="flex items-baseline gap-1">
                         <span className="text-3xl font-black text-white tracking-tighter">¥200</span>
                         <span className="text-xs font-bold text-slate-500">/ 月度</span>
                       </div>
-                      <span className="text-[10px] text-slate-500 font-bold mt-1">等价 $28.00 USD</span>
                     </div>
-                    <ul className="space-y-3 pt-4">
-                      <li className="flex items-center gap-2 text-[11px] font-bold text-slate-300"><Check size={12} className="text-indigo-400" /> 无限学习时长与资源</li>
-                      <li className="flex items-center gap-2 text-[11px] font-bold text-slate-300"><Check size={12} className="text-indigo-400" /> 优先响应高速 AI 导师</li>
+                    <ul className="space-y-2 pt-2">
+                      <li className="flex items-center gap-2 text-[10px] font-bold text-slate-300"><Check size={10} className="text-indigo-400" /> 无限时长与资源</li>
+                      <li className="flex items-center gap-2 text-[10px] font-bold text-slate-300"><Check size={10} className="text-indigo-400" /> 优先响应高阶 AI 导师</li>
                     </ul>
                   </div>
                   <button 
-                    onClick={() => handleChoice(true)}
-                    className="mt-10 w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 shadow-xl shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
+                    onClick={() => handleChoice('free')}
+                    className="mt-8 w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs hover:bg-indigo-700 shadow-xl shadow-indigo-500/20 transition-all active:scale-95"
                   >
-                    立即订阅 Pro <ArrowRight size={16} />
+                    立即开启 Pro 订阅
                   </button>
                 </div>
               </div>
 
               <p className="text-center text-[10px] text-slate-400 font-medium">
-                * 您可以随时根据学习进度在 ¥5 体验价与 ¥200 月度订阅之间切换。
+                * 每个账号仅限一次 15 分钟通行证机会。之后可购买 ¥5 体验包或订阅 Pro。
               </p>
             </div>
           </div>
