@@ -21,11 +21,11 @@ async function aiCall<T>(fn: (ai: GoogleGenAI) => Promise<T>, retries = 3): Prom
   } catch (error: any) {
     const msg = error.message || "";
     const sanitizedMsg = msg.replace(new RegExp(apiKey, 'g'), '***SECRET***');
-    console.error(`[Secure Context Error]: ${sanitizedMsg}`);
-
-    // 处理 403 权限问题，可能是 Search Grounding 未开启或模型不受限
+    
+    // 处理权限或工具不可用，不抛出异常而是标记，以便外部降级
     if (msg.includes('403') || msg.includes('permission denied')) {
-       throw new Error('AUTH_FORBIDDEN_OR_TOOL_UNAVAILABLE');
+       console.warn("Tool GoogleSearch might be unavailable for this key. Falling back.");
+       throw new Error('TOOL_UNAVAILABLE');
     }
 
     if (msg.includes('Requested entity was not found') || msg.includes('API_KEY_INVALID')) {
@@ -54,164 +54,209 @@ const cache = {
 };
 
 /**
- * 深度解析 Vision 内容 - 升级为 PRO 模型以确保 Search 稳定性
+ * 深度解析 Vision 内容 - 增加降级逻辑
  */
 export const analyzeVisionItem = async (topic: string, type: 'news' | 'song' | 'movie') => {
-  return aiCall(async (ai) => {
-    const prompt = `Perform a deep web search and pedagogical analysis for: "${topic}" (${type}). Generate a master-level English lesson in JSON format for B2 learners. Ensure the content is real, current, and educational.`;
-    const response = await ai.models.generateContent({
-      model: PRO_TXT,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }],
-        responseSchema: {
+  const prompt = `Perform a deep pedagogical analysis for: "${topic}" (${type}). Generate a master-level English lesson in JSON format for B2 learners. Ensure the content is educational and detailed.`;
+  const schema = {
+    type: Type.OBJECT,
+    properties: {
+      article_en: { type: Type.STRING, description: "Professional educational article about the topic (250+ words)" },
+      article_cn: { type: Type.STRING },
+      vocab: {
+        type: Type.ARRAY,
+        items: {
           type: Type.OBJECT,
           properties: {
-            article_en: { type: Type.STRING, description: "Professional educational article about the topic (250+ words)" },
-            article_cn: { type: Type.STRING },
-            vocab: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  w: { type: Type.STRING },
-                  t: { type: Type.STRING },
-                  e: { type: Type.STRING }
-                }
-              }
-            },
-            collocations: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  phrase: { type: Type.STRING },
-                  meaning: { type: Type.STRING },
-                  usage: { type: Type.STRING }
-                }
-              }
-            },
-            expressions: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  exp: { type: Type.STRING },
-                  meaning: { type: Type.STRING },
-                  context: { type: Type.STRING }
-                }
-              }
-            },
-            structures: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  s: { type: Type.STRING },
-                  logic: { type: Type.STRING }
-                }
-              }
-            }
-          },
-          required: ["article_en", "article_cn", "vocab", "collocations", "expressions", "structures"]
+            w: { type: Type.STRING },
+            t: { type: Type.STRING },
+            e: { type: Type.STRING }
+          }
+        }
+      },
+      collocations: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            phrase: { type: Type.STRING },
+            meaning: { type: Type.STRING },
+            usage: { type: Type.STRING }
+          }
+        }
+      },
+      expressions: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            exp: { type: Type.STRING },
+            meaning: { type: Type.STRING },
+            context: { type: Type.STRING }
+          }
+        }
+      },
+      structures: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            s: { type: Type.STRING },
+            logic: { type: Type.STRING }
+          }
         }
       }
-    });
-    return JSON.parse(response.text || '{}');
+    },
+    required: ["article_en", "article_cn", "vocab", "collocations", "expressions", "structures"]
+  };
+
+  return aiCall(async (ai) => {
+    try {
+      // 尝试使用搜索工具
+      const response = await ai.models.generateContent({
+        model: PRO_TXT,
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          tools: [{ googleSearch: {} }],
+          responseSchema: schema
+        }
+      });
+      return JSON.parse(response.text || '{}');
+    } catch (e) {
+      // 降级：不使用搜索工具，直接依赖模型知识生成
+      const response = await ai.models.generateContent({
+        model: FLASH_TXT,
+        contents: prompt + " (Note: Search tool currently offline, use your pre-trained knowledge to generate high-quality educational material)",
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: schema
+        }
+      });
+      return JSON.parse(response.text || '{}');
+    }
   });
 };
 
 /**
- * 实时全球趋势发现 - 升级为 PRO 模型以确保 Search 稳定性
+ * 实时全球趋势发现 - 增加自动降级
  */
 export const generateVisionTrends = async () => {
   const vKey = 'vision_trends_v1';
   const cached = cache.get(vKey);
   if (cached) return cached;
 
-  return aiCall(async (ai) => {
-    const prompt = `Search the live web (2024-2025) and identify 3 trending items for News, 3 for Billboard/Global Songs, and 3 for Movies. Output BILINGUAL JSON. Focus on items with high educational value for English learners.`;
-    const response = await ai.models.generateContent({
-      model: PRO_TXT,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }],
-        responseSchema: {
+  const prompt = `Identify 3 trending items for News, 3 for Billboard/Global Songs, and 3 for Movies. Output BILINGUAL JSON. Focus on items with high educational value for English learners. Use 2024-2025 context.`;
+  const schema = {
+    type: Type.OBJECT,
+    properties: {
+      news: {
+        type: Type.ARRAY,
+        items: {
           type: Type.OBJECT,
           properties: {
-            news: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  t_en: { type: Type.STRING },
-                  t_cn: { type: Type.STRING },
-                  s_en: { type: Type.STRING },
-                  s_cn: { type: Type.STRING },
-                  keywords: { type: Type.ARRAY, items: { type: Type.STRING } }
-                }
-              }
-            },
-            songs: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name_en: { type: Type.STRING },
-                  name_cn: { type: Type.STRING },
-                  artist: { type: Type.STRING },
-                  lyrics_clip_en: { type: Type.STRING },
-                  lyrics_clip_cn: { type: Type.STRING }
-                }
-              }
-            },
-            movies: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  title_en: { type: Type.STRING },
-                  title_cn: { type: Type.STRING },
-                  desc_en: { type: Type.STRING },
-                  desc_cn: { type: Type.STRING },
-                  accent: { type: Type.STRING }
-                }
-              }
-            }
-          },
-          required: ["news", "songs", "movies"]
+            t_en: { type: Type.STRING },
+            t_cn: { type: Type.STRING },
+            s_en: { type: Type.STRING },
+            s_cn: { type: Type.STRING },
+            keywords: { type: Type.ARRAY, items: { type: Type.STRING } }
+          }
+        }
+      },
+      songs: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            name_en: { type: Type.STRING },
+            name_cn: { type: Type.STRING },
+            artist: { type: Type.STRING },
+            lyrics_clip_en: { type: Type.STRING },
+            lyrics_clip_cn: { type: Type.STRING }
+          }
+        }
+      },
+      movies: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            title_en: { type: Type.STRING },
+            title_cn: { type: Type.STRING },
+            desc_en: { type: Type.STRING },
+            desc_cn: { type: Type.STRING },
+            accent: { type: Type.STRING }
+          }
         }
       }
-    });
-    const result = JSON.parse(response.text || '{}');
-    cache.set(vKey, result, 6);
-    return result;
+    },
+    required: ["news", "songs", "movies"]
+  };
+
+  return aiCall(async (ai) => {
+    try {
+      const response = await ai.models.generateContent({
+        model: PRO_TXT,
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          tools: [{ googleSearch: {} }],
+          responseSchema: schema
+        }
+      });
+      const result = JSON.parse(response.text || '{}');
+      cache.set(vKey, result, 6);
+      return result;
+    } catch (e) {
+      // 降级策略
+      const response = await ai.models.generateContent({
+        model: FLASH_TXT,
+        contents: prompt + " (Search grounding failed, please simulate current 2024-2025 trends from your internal database)",
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: schema
+        }
+      });
+      const result = JSON.parse(response.text || '{}');
+      cache.set(vKey, result, 6);
+      return result;
+    }
   });
 };
 
 /**
- * 全球职业洞察
+ * 全球职业洞察 - 增加降级
  */
 export const generateGlobalInsights = async (country: string) => {
   const cKey = `ins_${country}_v2`;
   const cached = cache.get(cKey);
   if (cached) return cached;
 
+  const prompt = `Provide 2024-2025 job market, immigration, and visa for ${country}. Output BILINGUAL JSON with news, visa policies, market trends, and salary history.`;
+  
   return aiCall(async (ai) => {
-    const prompt = `Search 2024-2025 job market, immigration, and visa for ${country}. Output BILINGUAL JSON with news (including official URLs), visa policies, market trends, and salary history.`;
-    const response = await ai.models.generateContent({
-      model: PRO_TXT,
-      contents: prompt,
-      config: { 
-        responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }] 
-      }
-    });
-    const result = JSON.parse(response.text || '{}');
-    cache.set(cKey, result); 
-    return result;
+    try {
+      const response = await ai.models.generateContent({
+        model: PRO_TXT,
+        contents: prompt,
+        config: { 
+          responseMimeType: "application/json",
+          tools: [{ googleSearch: {} }] 
+        }
+      });
+      const result = JSON.parse(response.text || '{}');
+      cache.set(cKey, result); 
+      return result;
+    } catch (e) {
+      const response = await ai.models.generateContent({
+        model: FLASH_TXT,
+        contents: prompt + " (Simulate based on current geopolitical and economic knowledge as of 2024)",
+        config: { responseMimeType: "application/json" }
+      });
+      const result = JSON.parse(response.text || '{}');
+      cache.set(cKey, result); 
+      return result;
+    }
   });
 };
 

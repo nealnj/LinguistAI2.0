@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { logger, ADMIN_PHONE } from '../services/logger';
+import { logger } from '../services/logger';
 import { User, UserLogEntry } from '../types';
 import { 
   Users, 
@@ -16,7 +16,8 @@ import {
   ChevronRight,
   TrendingUp,
   Brain,
-  Filter
+  Filter,
+  ShieldCheck
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
@@ -28,6 +29,20 @@ const AdminView: React.FC = () => {
   const [feedbackSummary, setFeedbackSummary] = useState<string>('');
   const [loadingFeedback, setLoadingFeedback] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [adminPhones, setAdminPhones] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const checkAdmins = async () => {
+      const adminSet = new Set<string>();
+      for (const user of users) {
+        if (await logger.isAdmin(user.phone)) {
+          adminSet.add(user.phone);
+        }
+      }
+      setAdminPhones(adminSet);
+    };
+    checkAdmins();
+  }, [users]);
 
   const refreshData = () => {
     setUsers(logger.getAllUsers());
@@ -53,7 +68,6 @@ const AdminView: React.FC = () => {
   const handleAddTime = (user: User) => {
     const today = new Date().toISOString().split('T')[0];
     const current = user.dailyUsage[today] || 0;
-    // Add 30 more mins (simulated by resetting usage or subtracting)
     logger.updateUserStatus(user.phone, { 
       dailyUsage: { ...user.dailyUsage, [today]: Math.max(0, current - 1800) } 
     });
@@ -148,6 +162,7 @@ const AdminView: React.FC = () => {
                 <tbody className="divide-y divide-slate-50">
                   {filteredUsers.map((user) => {
                     const isPro = user.subExpiry > Date.now();
+                    const isAdmin = adminPhones.has(user.phone);
                     const today = new Date().toISOString().split('T')[0];
                     const used = user.dailyUsage[today] || 0;
                     return (
@@ -156,7 +171,7 @@ const AdminView: React.FC = () => {
                           <div className="flex items-center gap-3">
                             <img src={`https://picsum.photos/seed/${user.phone}/40/40`} className="w-8 h-8 rounded-full" alt="" />
                             <span className="font-black text-slate-800">{user.phone}</span>
-                            {user.phone === ADMIN_PHONE && <span className="bg-indigo-600 text-white text-[8px] font-black px-2 py-0.5 rounded uppercase">Admin</span>}
+                            {isAdmin && <ShieldCheck size={14} className="text-indigo-600" />}
                           </div>
                         </td>
                         <td className="py-6">

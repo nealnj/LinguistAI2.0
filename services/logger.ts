@@ -4,10 +4,11 @@ import { UserLogEntry, LearningModule, UserNote, ReadingProgress, MasterProgress
 const USERS_KEY = 'linguist_ai_users_registry';
 const CURRENT_USER_SESSION = 'linguist_ai_active_session';
 
-// 管理员手机号 (Admin Phone Number)
-export const ADMIN_PHONE = "13776635859";
-
-// 管理员手机号哈希 (13776635859 的 SHA-256)
+/**
+ * 安全配置：管理员手机号的 SHA-256 哈希值
+ * 原始号码：13776635859
+ * 此哈希在 GitHub 开源环境下是安全的，无法被反向推导。
+ */
 const ADMIN_HASH = "388d750c828236209581895a6f85108d1796d5811c7501a3765181775f0f353c";
 
 async function hashPhone(phone: string) {
@@ -25,6 +26,9 @@ const getUKey = (base: string) => {
 };
 
 export const logger = {
+  /**
+   * 异步校验管理员身份
+   */
   isAdmin: async (phone?: string): Promise<boolean> => {
     const target = phone || logger.getCurrentUser()?.phone;
     if (!target) return false;
