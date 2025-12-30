@@ -21,13 +21,26 @@ async function aiCall<T>(fn: (ai: GoogleGenAI) => Promise<T>, retries = 2): Prom
   }
 }
 
+/**
+ * 安全解析 AI 返回的 JSON，并确保数组字段不为 null
+ */
 const safeParse = (jsonStr: string, fallback: any) => {
   try {
     const cleaned = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
     const data = JSON.parse(cleaned);
-    if (Array.isArray(fallback) && !Array.isArray(data)) return fallback;
-    if (typeof fallback === 'object' && fallback !== null && !Array.isArray(fallback)) {
-      return { ...fallback, ...data };
+    
+    if (data && typeof data === 'object') {
+      // 如果 fallback 是数组，确保 data 也是数组
+      if (Array.isArray(fallback) && !Array.isArray(data)) return fallback;
+      
+      // 深度补全：如果 fallback 是对象，确保 key 存在且类型正确
+      if (!Array.isArray(fallback) && typeof fallback === 'object') {
+        Object.keys(fallback).forEach(key => {
+          if (Array.isArray(fallback[key]) && !Array.isArray(data[key])) {
+            data[key] = []; 
+          }
+        });
+      }
     }
     return data;
   } catch {
@@ -36,61 +49,14 @@ const safeParse = (jsonStr: string, fallback: any) => {
 };
 
 /**
- * 简历生成引擎
- */
-export const generatePersonalizedResume = async (userData: any, targetCountry: string, specialization: string) => {
-  return aiCall(async (ai) => {
-    const prompt = `ACT AS A SENIOR GLOBAL HEADHUNTER.
-    Target: ${targetCountry} | Specialization: ${specialization}
-    TASK: Generate a 1:1 Global Standard Resume (Markdown). Bilingual (EN/CN).`;
-
-    const response = await ai.models.generateContent({
-      model: FLASH_TXT,
-      contents: prompt,
-      config: { tools: [{ googleSearch: {} }] }
-    });
-    return response.text || "";
-  });
-};
-
-/**
- * 全球职业洞察获取
- */
-export const generateGlobalInsights = async (country: string) => {
-  const fallback = { market: {}, regions: [], demand: [], news: [], visa: [], evolution: [], sources: [] };
-  return aiCall(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: FLASH_TXT,
-      contents: `ACT AS AN ADVANCED CAREER DATA ANALYST. 
-      Analyze TODAY'S market for "${country}".
-      Return JSON: {
-        market: {salary_en, salary_cn, trend_2yr_desc}, 
-        evolution: [{sector_cn, shift_pct, reason_cn}],
-        regions: [{name_en, name_cn, description_en, description_cn, difficulty, cost, friendliness, proTip_cn}],
-        demand: [{title_en, title_cn, growth}], 
-        news: [{title_en, title_cn, date}], 
-        visa: [{title_en, title_cn, description_cn}]
-      }`,
-      config: { 
-        responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }] 
-      }
-    });
-    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    return { ...safeParse(response.text, fallback), sources };
-  });
-};
-
-/**
- * 系统词汇生成：强制包含音标、派生词形态、词根词缀及句法剖析
+ * v1.0 词汇生成引擎：强制包含音标与形态学数据
  */
 export const generateVocabulary = async (level: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `ACT AS AN ACADEMIC ETYMOLOGIST.
-      TASK: Generate 5 HIGH-VALUE academic words for ${level}. 
-      CRITICAL: You MUST provide accurate IPA phonetics, multiple morphological forms (derivatives), and structural analysis.`,
+      contents: `ACT AS AN ACADEMIC LINGUIST. Generate 5 core academic words for ${level}. 
+      CRITICAL: You MUST provide accurate IPA phonetics with slashes, detailed morphological forms, and root analysis.`,
       config: { 
         responseMimeType: "application/json",
         responseSchema: {
@@ -101,7 +67,7 @@ export const generateVocabulary = async (level: string) => {
               word: { type: Type.STRING },
               phonetic: { type: Type.STRING, description: 'Accurate IPA phonetic with slashes' },
               translation: { type: Type.STRING },
-              pos: { type: Type.STRING, description: 'Part of speech' },
+              pos: { type: Type.STRING },
               example: { type: Type.STRING },
               exampleTranslation: { type: Type.STRING },
               exampleStructure: {
@@ -161,7 +127,7 @@ export const generateVocabulary = async (level: string) => {
               etymology: { type: Type.STRING },
               memoryTip: { type: Type.STRING }
             },
-            required: ['word', 'phonetic', 'translation', 'pos', 'example', 'exampleStructure', 'mnemonic', 'forms', 'relatedWords']
+            required: ['word', 'phonetic', 'translation', 'pos', 'example', 'exampleStructure', 'mnemonic', 'forms', 'relatedWords', 'roots', 'affixes']
           }
         }
       }
@@ -171,23 +137,118 @@ export const generateVocabulary = async (level: string) => {
 };
 
 /**
- * 寰宇视野趋势获取
+ * v1.0 语法教学引擎：深度结构化解构
  */
+export const generateGrammarLesson = async (topic: string) => {
+  return aiCall(async (ai) => {
+    const response = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Create a professional, logic-driven grammar lesson for: "${topic}".`,
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            concept: { type: Type.STRING },
+            analogy: { type: Type.STRING },
+            structureBreakdown: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  sentence: { type: Type.STRING },
+                  sentenceType: { type: Type.STRING },
+                  analysis: {
+                    type: Type.OBJECT,
+                    properties: {
+                      subject: { type: Type.STRING },
+                      verb: { type: Type.STRING },
+                      object: { type: Type.STRING },
+                      others: { type: Type.STRING }
+                    }
+                  },
+                  explanation: { type: Type.STRING },
+                  collocationTip: { type: Type.STRING }
+                },
+                required: ['sentence', 'sentenceType', 'analysis', 'explanation']
+              }
+            },
+            rules: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  content: { type: Type.STRING }
+                },
+                required: ['title', 'content']
+              }
+            }
+          },
+          required: ['title', 'concept', 'analogy', 'structureBreakdown', 'rules']
+        }
+      }
+    });
+    return safeParse(response.text, { title: topic, concept: "", analogy: "", structureBreakdown: [], rules: [] });
+  });
+};
+
+export const generateGrammarQuiz = async (topic: string) => {
+  return aiCall(async (ai) => {
+    const response = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Generate 3 logical grammar quiz questions for "${topic}".`,
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING },
+              options: { type: Type.ARRAY, items: { type: Type.STRING } },
+              correctAnswer: { type: Type.NUMBER },
+              detailedAnalysis: {
+                type: Type.OBJECT,
+                properties: {
+                  logic: { type: Type.STRING },
+                  structure: { type: Type.STRING },
+                  collocations: { type: Type.STRING }
+                },
+                required: ['logic', 'structure', 'collocations']
+              }
+            },
+            required: ['question', 'options', 'correctAnswer', 'detailedAnalysis']
+          }
+        }
+      }
+    });
+    return safeParse(response.text, []);
+  });
+};
+
+export const generateGlobalInsights = async (country: string) => {
+  const fallback = { market: {}, regions: [], demand: [], news: [], visa: [], evolution: [], sources: [] };
+  return aiCall(async (ai) => {
+    const response = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `ACT AS AN ADVANCED CAREER DATA ANALYST. Analyze TODAY'S market for "${country}".`,
+      config: { 
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }] 
+      }
+    });
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    return { ...safeParse(response.text, fallback), sources };
+  });
+};
+
 export const generateVisionTrends = async () => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `ACT AS A REAL-TIME GLOBAL TREND ANALYST. 
-      Obtain the most popular items TODAY (2024-2025) across News, Music, and Movies.
-      
-      CRITICAL: You MUST use the following JSON structure and bilingual fields:
-      {
-        "news": [{"title_en": "...", "title_cn": "...", "desc_en": "...", "desc_cn": "..."}],
-        "songs": [{"title_en": "...", "title_cn": "...", "desc_en": "...", "desc_cn": "...", "artist": "..."}],
-        "movies": [{"title_en": "...", "title_cn": "...", "desc_en": "...", "desc_cn": "..."}]
-      }
-      
-      Ensure all items are currently trending globally.`,
+      contents: `Get real-time global news, music, movie trends (2024-2025).`,
       config: { 
         responseMimeType: "application/json",
         tools: [{ googleSearch: {} }]
@@ -196,34 +257,6 @@ export const generateVisionTrends = async () => {
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const data = safeParse(response.text, { news: [], songs: [], movies: [] });
     return { ...data, sources };
-  });
-};
-
-export const generateReadingArticle = async (category: string, progress: any) => {
-  return aiCall(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: FLASH_TXT,
-      contents: `Obtain latest news in ${category} (2024-2025). Convert to bilingual article for Level ${progress.currentLevel}. JSON.`,
-      config: { 
-        responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }]
-      }
-    });
-    return safeParse(response.text, { title: "", chineseTitle: "", content: "", questions: [] });
-  });
-};
-
-export const analyzeVisionItem = async (topic: string, type: string) => {
-  return aiCall(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: FLASH_TXT,
-      contents: `Conduct deep analysis on ${type}: "${topic}". Return JSON: {article_en, article_cn, vocab: [{w, t, e}], structures: []}`,
-      config: { 
-        responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }]
-      }
-    });
-    return safeParse(response.text, { article_en: "", article_cn: "", vocab: [], structures: [] });
   });
 };
 
@@ -254,22 +287,11 @@ export const generateImage = async (prompt: string) => {
   });
 };
 
-export const generateGrammarLesson = async (topic: string) => {
-  return aiCall(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: FLASH_TXT,
-      contents: `Create precision grammar lesson for "${topic}". JSON.`,
-      config: { responseMimeType: "application/json" }
-    });
-    return safeParse(response.text, { title: topic, concept: "", analogy: "", structureBreakdown: [] });
-  });
-};
-
 export const analyzeWriting = async (text: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Analyze writing: "${text}". JSON.`,
+      contents: `Analyze writing standard against IELTS. JSON {score, feedback, corrections: [{original, suggested, reason}]}`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, { score: 0, feedback: "", corrections: [] });
@@ -280,7 +302,7 @@ export const generateLearningPlan = async (goal: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Strategic roadmap for: ${goal}. JSON.`,
+      contents: `Strategic learning roadmap for: ${goal}. JSON list of steps.`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, []);
@@ -289,7 +311,7 @@ export const generateLearningPlan = async (goal: string) => {
 
 export const generateMentorAdvice = async (module: string, userMsg?: string) => {
   return aiCall(async (ai) => {
-    const prompt = userMsg ? `User asks: ${userMsg}` : `Expert advice for ${module}.`;
+    const prompt = userMsg ? `User asks: ${userMsg}` : `Expert advice for module: ${module}.`;
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
       contents: prompt,
@@ -304,7 +326,7 @@ export const generateReviewQuiz = async (notes: any[]) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Memory quiz for: ${JSON.stringify(notes)}. JSON.`,
+      contents: `Quiz based on these notes: ${JSON.stringify(notes)}. JSON.`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, []);
@@ -321,13 +343,40 @@ export const getExamTips = async (type: string) => {
   });
 };
 
-export const generateGrammarQuiz = async (topic: string) => {
+export const generateReadingArticle = async (category: string, progress: any) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `3 precision grammar quiz questions for ${topic}. JSON.`,
-      config: { responseMimeType: "application/json" }
+      contents: `Latest news article in ${category} for Level ${progress.currentLevel}. Bilingual.`,
+      config: { 
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }]
+      }
     });
-    return safeParse(response.text, []);
+    return safeParse(response.text, { title: "", chineseTitle: "", content: "", keyWords: [], questions: [] });
+  });
+};
+
+export const analyzeVisionItem = async (topic: string, type: string) => {
+  return aiCall(async (ai) => {
+    const response = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Deep analysis of ${type}: "${topic}". JSON {article_en, article_cn, vocab, structures}`,
+      config: { 
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }]
+      }
+    });
+    return safeParse(response.text, { article_en: "", article_cn: "", vocab: [], structures: [] });
+  });
+};
+
+export const generatePersonalizedResume = async (progress: any, country: string, specialization: string) => {
+  return aiCall(async (ai) => {
+    const response = await ai.models.generateContent({
+      model: PRO_TXT,
+      contents: `ACT AS AN INTERNATIONAL CAREER CONSULTANT. Generate a professional English resume for: ${specialization}, Target: ${country}. Use learning data: ${JSON.stringify(progress)}`,
+    });
+    return response.text || "";
   });
 };
