@@ -25,7 +25,7 @@ declare global {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
   }
-  interface Window {
+  interface window {
     aistudio?: AIStudio;
   }
 }
@@ -43,7 +43,9 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showPayment, setShowPayment] = useState(false);
   const [usageStats, setUsageStats] = useState(logger.checkSubscription());
-  const [isSecure, setIsSecure] = useState(true);
+  
+  const pricing = logger.getPricingConfig();
+  const discountedPrice = Math.round(pricing.originalAnnualPrice * pricing.discountRate);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -112,9 +114,10 @@ const App: React.FC = () => {
     { id: LearningModule.IELTS, label: '雅思专区', icon: <GraduationCap size={20} /> },
   ];
 
-  if (isAdmin) menuItems.push({ id: LearningModule.ADMIN, label: '系统管理', icon: <Settings size={20} /> });
+  if (isAdmin) {
+    menuItems.push({ id: LearningModule.ADMIN, label: '系统管理', icon: <Settings size={20} className="text-indigo-600" /> });
+  }
 
-  // 渲染健壮的头像标识（UI Initial Avatar）
   const renderAvatar = (phone: string, size: string = 'w-8 h-8') => {
     const colors = ['bg-indigo-500', 'bg-emerald-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-500', 'bg-slate-500'];
     const lastDigit = parseInt(phone.slice(-1)) || 0;
@@ -150,13 +153,12 @@ const App: React.FC = () => {
             <div className="px-3 py-4 bg-slate-50 rounded-2xl mb-2">
                <button onClick={() => setShowPayment(true)} className="flex items-center gap-3 mb-3 w-full text-left hover:bg-white p-2 rounded-xl transition-all group border border-transparent hover:border-slate-100 hover:shadow-sm">
                  <div className="relative shrink-0">
-                   {/* 核心修复：移除 img 标签，改用 CSS 头像 */}
                    {renderAvatar(currentUser.phone)}
-                   {usageStats.isPro && <div className="absolute -bottom-0.5 -right-0.5 bg-indigo-500 w-2.5 h-2.5 rounded-full border-2 border-white flex items-center justify-center"><Crown size={6} className="text-white" /></div>}
+                   {(usageStats.isPro || isAdmin) && <div className="absolute -bottom-0.5 -right-0.5 bg-indigo-500 w-2.5 h-2.5 rounded-full border-2 border-white flex items-center justify-center"><Crown size={6} className="text-white" /></div>}
                  </div>
                  <div className="overflow-hidden flex-1">
                    <div className="text-[10px] font-black text-slate-800 truncate">{currentUser.phone}</div>
-                   <div className={`text-[8px] font-bold uppercase tracking-widest ${usageStats.isPro ? 'text-indigo-600' : 'text-amber-600'}`}>{usageStats.isPro ? 'Pro Member' : usageStats.isPassActive ? '15m Pass Active' : 'Free Trial'}</div>
+                   <div className={`text-[8px] font-bold uppercase tracking-widest ${usageStats.isPro ? 'text-indigo-600' : isAdmin ? 'text-indigo-400' : 'text-amber-600'}`}>{isAdmin ? 'System Admin' : usageStats.isPro ? 'Pro Member' : 'Free Trial'}</div>
                  </div>
                  <ChevronRight size={12} className="text-slate-300 shrink-0" />
                </button>
@@ -170,7 +172,7 @@ const App: React.FC = () => {
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 z-40">
           <h2 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" /> {menuItems.find(m => m.id === activeModule)?.label}</h2>
           <div className="flex items-center gap-6">
-            {!usageStats.isPro && (
+            {!usageStats.isPro && !isAdmin && (
               <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${usageStats.isPassActive ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-amber-50 border-amber-100 text-amber-600'}`}>
                 {usageStats.isPassActive ? <Ticket size={14} className="animate-pulse" /> : <Clock size={14} />}
                 <span className="text-[9px] font-black uppercase tracking-widest">
@@ -179,8 +181,14 @@ const App: React.FC = () => {
               </div>
             )}
             
-            {!usageStats.isPro && <button onClick={() => setShowPayment(true)} className="bg-amber-100 text-amber-700 px-4 py-2 rounded-xl text-[10px] font-black border border-amber-200 uppercase tracking-widest flex items-center gap-2"><Crown size={14} /> 升级 Pro (¥200/月)</button>}
-            <div className="bg-indigo-50 text-indigo-700 px-4 py-1.5 rounded-xl text-[10px] font-black border border-indigo-100 uppercase tracking-widest">Linguist Prime</div>
+            {!usageStats.isPro && !isAdmin && (
+              <button onClick={() => setShowPayment(true)} className="bg-amber-100 text-amber-700 px-4 py-2 rounded-xl text-[10px] font-black border border-amber-200 uppercase tracking-widest flex items-center gap-2">
+                <Crown size={14} /> 升级 Pro (特惠 ¥{discountedPrice}/年)
+              </button>
+            )}
+            <div className={`px-4 py-1.5 rounded-xl text-[10px] font-black border uppercase tracking-widest ${isAdmin ? 'bg-slate-900 text-white border-slate-800' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
+              {isAdmin ? 'Root Access' : 'Linguist Prime'}
+            </div>
           </div>
         </header>
         <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50 relative">

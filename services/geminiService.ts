@@ -36,27 +36,40 @@ const safeParse = (jsonStr: string, fallback: any) => {
 };
 
 /**
- * 全球职业洞察：云端爬虫 + 中英对照
- * 实时性：抓取 2024-2025 签证、薪资、区域对比
- * 精准性：提供 Source Link 和 难度/成本/友好度量化指标
+ * 简历生成引擎
+ */
+export const generatePersonalizedResume = async (userData: any, targetCountry: string, specialization: string) => {
+  return aiCall(async (ai) => {
+    const prompt = `ACT AS A SENIOR GLOBAL HEADHUNTER.
+    Target: ${targetCountry} | Specialization: ${specialization}
+    TASK: Generate a 1:1 Global Standard Resume (Markdown). Bilingual (EN/CN).`;
+
+    const response = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: prompt,
+      config: { tools: [{ googleSearch: {} }] }
+    });
+    return response.text || "";
+  });
+};
+
+/**
+ * 全球职业洞察获取
  */
 export const generateGlobalInsights = async (country: string) => {
-  const fallback = { market: {}, regions: [], demand: [], news: [], visa: [], sources: [] };
+  const fallback = { market: {}, regions: [], demand: [], news: [], visa: [], evolution: [], sources: [] };
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `ACT AS AN ADVANCED WEB SCRAPER. 
-      Crawl the latest 2024-2025 career data for "${country}".
-      1. COMPARE main cities/regions (e.g., Tokyo vs Osaka).
-      2. BILINGUAL: All fields in both English and Chinese.
-      3. FACTUAL: Find direct reference links.
-      
+      contents: `ACT AS AN ADVANCED CAREER DATA ANALYST. 
+      Analyze TODAY'S market for "${country}".
       Return JSON: {
-        market: {salary_en, salary_cn, pct, trend}, 
-        regions: [{name_en, name_cn, description_en, description_cn, difficulty, cost, friendliness, proTip_cn, source_link}],
-        demand: [{title_en, title_cn, growth, source_link}], 
-        news: [{title_en, title_cn, summary_en, summary_cn, date, source_link}], 
-        visa: [{title_en, title_cn, description_en, description_cn, source_link}]
+        market: {salary_en, salary_cn, trend_2yr_desc}, 
+        evolution: [{sector_cn, shift_pct, reason_cn}],
+        regions: [{name_en, name_cn, description_en, description_cn, difficulty, cost, friendliness, proTip_cn}],
+        demand: [{title_en, title_cn, growth}], 
+        news: [{title_en, title_cn, date}], 
+        visa: [{title_en, title_cn, description_cn}]
       }`,
       config: { 
         responseMimeType: "application/json",
@@ -68,20 +81,11 @@ export const generateGlobalInsights = async (country: string) => {
   });
 };
 
-/**
- * 系统化单词生成：学术级精准性
- * 分析词根词缀、SVO 结构、记忆锚点
- */
 export const generateVocabulary = async (level: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Generate 5 academic vocabulary words for ${level}. 
-      PRECISION REQUIREMENT:
-      1. SVO ANALYSIS: Break down example sentence structure.
-      2. ETYMOLOGY: Roots and affixes.
-      3. MNEMONIC: Logic-based memory tip.
-      Return JSON array of VocabularyWord objects.`,
+      contents: `Generate 5 academic vocabulary words for ${level}. Return JSON array.`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, []);
@@ -89,37 +93,39 @@ export const generateVocabulary = async (level: string) => {
 };
 
 /**
- * 寰宇视野趋势：实时热点爬虫
- * 抓取当日全球最火新闻、金曲、影视
+ * 寰宇视野趋势获取
  */
 export const generateVisionTrends = async () => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `ACT AS A TREND SCRAPER. Search top global items TODAY (2024-2025).
-      Categories: 1. Breaking News, 2. Global Music Hits, 3. New Movie/Series.
-      Return JSON: {news:[], songs:[], movies:[]}. All bilingual.`,
+      contents: `ACT AS A REAL-TIME GLOBAL TREND ANALYST. 
+      Obtain the most popular items TODAY (2024-2025) across News, Music, and Movies.
+      
+      CRITICAL: You MUST use the following JSON structure and bilingual fields:
+      {
+        "news": [{"title_en": "...", "title_cn": "...", "desc_en": "...", "desc_cn": "..."}],
+        "songs": [{"title_en": "...", "title_cn": "...", "desc_en": "...", "desc_cn": "...", "artist": "..."}],
+        "movies": [{"title_en": "...", "title_cn": "...", "desc_en": "...", "desc_cn": "..."}]
+      }
+      
+      Ensure all items are currently trending globally.`,
       config: { 
         responseMimeType: "application/json",
         tools: [{ googleSearch: {} }]
       }
     });
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    return { ...safeParse(response.text, { news: [], songs: [], movies: [] }), sources };
+    const data = safeParse(response.text, { news: [], songs: [], movies: [] });
+    return { ...data, sources };
   });
 };
 
-/**
- * 行业演化阅读：实时性 + 教学性
- * 抓取最新行业新闻并转化为指定等级的阅读教材
- */
 export const generateReadingArticle = async (category: string, progress: any) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Crawl the most recent news in ${category} (2024-2025). 
-      Convert it into a bilingual educational article for Level ${progress.currentLevel}.
-      Include 3 reading comprehension questions with logic analysis. JSON.`,
+      contents: `Obtain latest news in ${category} (2024-2025). Convert to bilingual article for Level ${progress.currentLevel}. JSON.`,
       config: { 
         responseMimeType: "application/json",
         tools: [{ googleSearch: {} }]
@@ -133,8 +139,7 @@ export const analyzeVisionItem = async (topic: string, type: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Deep crawl and analyze ${type}: "${topic}" for English learners. 
-      Analyze vocabulary, structure, and cultural context. Return JSON.`,
+      contents: `Conduct deep analysis on ${type}: "${topic}". Return JSON: {article_en, article_cn, vocab: [{w, t, e}], structures: []}`,
       config: { 
         responseMimeType: "application/json",
         tools: [{ googleSearch: {} }]
@@ -175,7 +180,7 @@ export const generateGrammarLesson = async (topic: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Create a precision grammar lesson for "${topic}" with SVO breakdown and analogies. JSON.`,
+      contents: `Create precision grammar lesson for "${topic}". JSON.`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, { title: topic, concept: "", analogy: "", structureBreakdown: [] });
@@ -186,7 +191,7 @@ export const analyzeWriting = async (text: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Analyze writing precision: "${text}". Score 0-9. JSON feedback.`,
+      contents: `Analyze writing: "${text}". JSON.`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, { score: 0, feedback: "", corrections: [] });
@@ -197,7 +202,7 @@ export const generateLearningPlan = async (goal: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Strategic roadmap for: ${goal}. JSON steps.`,
+      contents: `Strategic roadmap for: ${goal}. JSON.`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, []);

@@ -3,8 +3,16 @@ import { UserLogEntry, LearningModule, UserNote, ReadingProgress, MasterProgress
 
 const USERS_KEY = 'linguist_ai_users_registry';
 const CURRENT_USER_SESSION = 'linguist_ai_active_session';
+const PRICING_CONFIG_KEY = 'linguist_ai_pricing_config';
 
+// 管理员手机号白名单
+const ADMIN_PHONES = ["13776635859"];
 const ADMIN_HASH = "388d750c828236209581895a6f85108d1796d5811c7501a3765181775f0f353c";
+
+export interface PricingConfig {
+  originalAnnualPrice: number;
+  discountRate: number; // 0.7 代表 7 折
+}
 
 async function hashPhone(phone: string) {
   const msgUint8 = new TextEncoder().encode(phone);
@@ -24,8 +32,21 @@ export const logger = {
   isAdmin: async (phone?: string): Promise<boolean> => {
     const target = phone || logger.getCurrentUser()?.phone;
     if (!target) return false;
+    if (ADMIN_PHONES.includes(target)) return true;
     const currentHash = await hashPhone(target);
     return currentHash === ADMIN_HASH;
+  },
+
+  getPricingConfig: (): PricingConfig => {
+    const data = localStorage.getItem(PRICING_CONFIG_KEY);
+    if (!data) {
+      return { originalAnnualPrice: 2400, discountRate: 0.7 };
+    }
+    return JSON.parse(data);
+  },
+
+  updatePricingConfig: (config: PricingConfig) => {
+    localStorage.setItem(PRICING_CONFIG_KEY, JSON.stringify(config));
   },
 
   registerOrLogin: (phone: string, password?: string): User => {
@@ -65,13 +86,9 @@ export const logger = {
     localStorage.removeItem(CURRENT_USER_SESSION);
   },
 
-  /**
-   * 激活 15 分钟极速通行证
-   */
   activateFreePass: () => {
     const user = logger.getCurrentUser();
     if (!user) return;
-    // 权限截止时间 = 当前时间 + 15分钟
     const expiry = Date.now() + 15 * 60 * 1000;
     logger.updateUserStatus(user.phone, { freePassExpiry: expiry } as any);
   },
@@ -79,10 +96,8 @@ export const logger = {
   updateUserUsage: (seconds: number) => {
     const user = logger.getCurrentUser();
     if (!user) return;
-    
     const today = new Date().toISOString().split('T')[0];
     user.dailyUsage[today] = (user.dailyUsage[today] || 0) + seconds;
-    
     localStorage.setItem(CURRENT_USER_SESSION, JSON.stringify(user));
     const users: User[] = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
     const idx = users.findIndex(u => u.phone === user.phone);
@@ -95,27 +110,16 @@ export const logger = {
   checkSubscription: (): { isPro: boolean; remainingFreeSecs: number; isBanned: boolean; isPassActive: boolean } => {
     const user = logger.getCurrentUser();
     if (!user) return { isPro: false, remainingFreeSecs: 0, isBanned: false, isPassActive: false };
-    
     const isPro = user.subExpiry > Date.now();
     const isPassActive = (user.freePassExpiry || 0) > Date.now();
-    
     const today = new Date().toISOString().split('T')[0];
     const usedToday = user.dailyUsage[today] || 0;
-    const freeLimit = 30 * 60; // 30分钟每日免费
-    
+    const freeLimit = 30 * 60; 
     let remaining = Math.max(0, freeLimit - usedToday);
-    
-    // 通行证活跃时，优先显示通行证倒计时
     if (isPassActive && !isPro) {
       remaining = Math.floor(((user.freePassExpiry || 0) - Date.now()) / 1000);
     }
-    
-    return {
-      isPro,
-      isPassActive,
-      remainingFreeSecs: remaining,
-      isBanned: !!user.isBanned
-    };
+    return { isPro, isPassActive, remainingFreeSecs: remaining, isBanned: !!user.isBanned };
   },
 
   getAllUsers: (): User[] => JSON.parse(localStorage.getItem(USERS_KEY) || '[]'),
@@ -126,7 +130,6 @@ export const logger = {
     if (idx !== -1) {
       users[idx] = { ...users[idx], ...updates };
       localStorage.setItem(USERS_KEY, JSON.stringify(users));
-      
       const current = logger.getCurrentUser();
       if (current && current.phone === phone) {
         localStorage.setItem(CURRENT_USER_SESSION, JSON.stringify(users[idx]));
