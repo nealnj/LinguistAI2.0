@@ -3,7 +3,19 @@ import { UserLogEntry, LearningModule, UserNote, ReadingProgress, MasterProgress
 
 const USERS_KEY = 'linguist_ai_users_registry';
 const CURRENT_USER_SESSION = 'linguist_ai_active_session';
-export const ADMIN_PHONE = '13776635859';
+
+// 管理员手机号 (Admin Phone Number)
+export const ADMIN_PHONE = "13776635859";
+
+// 管理员手机号哈希 (13776635859 的 SHA-256)
+const ADMIN_HASH = "388d750c828236209581895a6f85108d1796d5811c7501a3765181775f0f353c";
+
+async function hashPhone(phone: string) {
+  const msgUint8 = new TextEncoder().encode(phone);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 const getUKey = (base: string) => {
   const userJson = localStorage.getItem(CURRENT_USER_SESSION);
@@ -13,6 +25,13 @@ const getUKey = (base: string) => {
 };
 
 export const logger = {
+  isAdmin: async (phone?: string): Promise<boolean> => {
+    const target = phone || logger.getCurrentUser()?.phone;
+    if (!target) return false;
+    const currentHash = await hashPhone(target);
+    return currentHash === ADMIN_HASH;
+  },
+
   registerOrLogin: (phone: string, password?: string): User => {
     const users: User[] = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
     let user = users.find(u => u.phone === phone);
@@ -82,7 +101,6 @@ export const logger = {
     };
   },
 
-  // Admin Features
   getAllUsers: (): User[] => JSON.parse(localStorage.getItem(USERS_KEY) || '[]'),
   
   updateUserStatus: (phone: string, updates: Partial<User>) => {
@@ -92,7 +110,6 @@ export const logger = {
       users[idx] = { ...users[idx], ...updates };
       localStorage.setItem(USERS_KEY, JSON.stringify(users));
       
-      // Update active session if it's the current user
       const current = logger.getCurrentUser();
       if (current && current.phone === phone) {
         localStorage.setItem(CURRENT_USER_SESSION, JSON.stringify(users[idx]));
@@ -195,9 +212,6 @@ export const logger = {
 
   getNotes: (): UserNote[] => JSON.parse(localStorage.getItem(getUKey('notes')) || '[]'),
   getLogs: (): UserLogEntry[] => JSON.parse(localStorage.getItem(getUKey(`logs`)) || '[]'),
-  /**
-   * Filter user logs to return only actions of type 'mistake'
-   */
   getMistakes: (): UserLogEntry[] => {
     const logs = logger.getLogs();
     return logs.filter(l => l.action === 'mistake');

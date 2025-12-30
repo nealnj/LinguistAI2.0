@@ -9,8 +9,6 @@ const FLASH_TTS = 'gemini-2.5-flash-preview-tts';
 
 /**
  * 核心安全调用封装 (Secure API Wrapper)
- * 1. 采用即时实例化：防止持久化对象被内存嗅探
- * 2. 严格错误过滤：确保错误信息中不携带敏感 Credential
  */
 async function aiCall<T>(fn: (ai: GoogleGenAI) => Promise<T>, retries = 3): Promise<T> {
   const apiKey = process.env.API_KEY;
@@ -25,7 +23,12 @@ async function aiCall<T>(fn: (ai: GoogleGenAI) => Promise<T>, retries = 3): Prom
     const sanitizedMsg = msg.replace(new RegExp(apiKey, 'g'), '***SECRET***');
     console.error(`[Secure Context Error]: ${sanitizedMsg}`);
 
-    if (msg.includes('Requested entity was not found') || msg.includes('403') || msg.includes('API_KEY_INVALID')) {
+    // 处理 403 权限问题，可能是 Search Grounding 未开启或模型不受限
+    if (msg.includes('403') || msg.includes('permission denied')) {
+       throw new Error('AUTH_FORBIDDEN_OR_TOOL_UNAVAILABLE');
+    }
+
+    if (msg.includes('Requested entity was not found') || msg.includes('API_KEY_INVALID')) {
        throw new Error('AUTH_INVALID');
     }
     
@@ -51,17 +54,68 @@ const cache = {
 };
 
 /**
- * 深度解析 Vision 内容
+ * 深度解析 Vision 内容 - 升级为 PRO 模型以确保 Search 稳定性
  */
 export const analyzeVisionItem = async (topic: string, type: 'news' | 'song' | 'movie') => {
   return aiCall(async (ai) => {
-    const prompt = `Search and analyze the specific content for: "${topic}" (${type}). Generate educational JSON {article_en, article_cn, vocab:[{w,t,e}], collocations:[{phrase,meaning,usage}], expressions:[{exp,meaning,context}], structures:[{s,logic}]}`;
+    const prompt = `Perform a deep web search and pedagogical analysis for: "${topic}" (${type}). Generate a master-level English lesson in JSON format for B2 learners. Ensure the content is real, current, and educational.`;
     const response = await ai.models.generateContent({
-      model: FLASH_TXT,
+      model: PRO_TXT,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }]
+        tools: [{ googleSearch: {} }],
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            article_en: { type: Type.STRING, description: "Professional educational article about the topic (250+ words)" },
+            article_cn: { type: Type.STRING },
+            vocab: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  w: { type: Type.STRING },
+                  t: { type: Type.STRING },
+                  e: { type: Type.STRING }
+                }
+              }
+            },
+            collocations: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  phrase: { type: Type.STRING },
+                  meaning: { type: Type.STRING },
+                  usage: { type: Type.STRING }
+                }
+              }
+            },
+            expressions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  exp: { type: Type.STRING },
+                  meaning: { type: Type.STRING },
+                  context: { type: Type.STRING }
+                }
+              }
+            },
+            structures: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  s: { type: Type.STRING },
+                  logic: { type: Type.STRING }
+                }
+              }
+            }
+          },
+          required: ["article_en", "article_cn", "vocab", "collocations", "expressions", "structures"]
+        }
       }
     });
     return JSON.parse(response.text || '{}');
@@ -69,7 +123,7 @@ export const analyzeVisionItem = async (topic: string, type: 'news' | 'song' | '
 };
 
 /**
- * 实时全球趋势发现
+ * 实时全球趋势发现 - 升级为 PRO 模型以确保 Search 稳定性
  */
 export const generateVisionTrends = async () => {
   const vKey = 'vision_trends_v1';
@@ -77,13 +131,58 @@ export const generateVisionTrends = async () => {
   if (cached) return cached;
 
   return aiCall(async (ai) => {
-    const prompt = `Search and identify 3 high-quality English trending items in News, Songs, Movies. Output BILINGUAL JSON.`;
+    const prompt = `Search the live web (2024-2025) and identify 3 trending items for News, 3 for Billboard/Global Songs, and 3 for Movies. Output BILINGUAL JSON. Focus on items with high educational value for English learners.`;
     const response = await ai.models.generateContent({
-      model: FLASH_TXT,
+      model: PRO_TXT,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }]
+        tools: [{ googleSearch: {} }],
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            news: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  t_en: { type: Type.STRING },
+                  t_cn: { type: Type.STRING },
+                  s_en: { type: Type.STRING },
+                  s_cn: { type: Type.STRING },
+                  keywords: { type: Type.ARRAY, items: { type: Type.STRING } }
+                }
+              }
+            },
+            songs: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name_en: { type: Type.STRING },
+                  name_cn: { type: Type.STRING },
+                  artist: { type: Type.STRING },
+                  lyrics_clip_en: { type: Type.STRING },
+                  lyrics_clip_cn: { type: Type.STRING }
+                }
+              }
+            },
+            movies: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title_en: { type: Type.STRING },
+                  title_cn: { type: Type.STRING },
+                  desc_en: { type: Type.STRING },
+                  desc_cn: { type: Type.STRING },
+                  accent: { type: Type.STRING }
+                }
+              }
+            }
+          },
+          required: ["news", "songs", "movies"]
+        }
       }
     });
     const result = JSON.parse(response.text || '{}');

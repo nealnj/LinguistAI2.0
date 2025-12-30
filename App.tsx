@@ -18,10 +18,9 @@ import VisionView from './views/VisionView';
 import AIMentor from './components/AIMentor';
 import LoginView from './views/LoginView';
 import PaymentModal from './components/PaymentModal';
-import { logger, ADMIN_PHONE } from './services/logger';
+import { logger } from './services/logger';
 
 // Fix: Change aistudio to optional in the Window interface extension. 
-// This resolves the "identical modifiers" conflict with existing declarations in the ambient environment.
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
@@ -34,6 +33,7 @@ declare global {
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(logger.getCurrentUser());
+  const [isAdmin, setIsAdmin] = useState(false);
   const [activeModule, setActiveModule] = useState<LearningModule>(LearningModule.DASHBOARD);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showPayment, setShowPayment] = useState(false);
@@ -41,11 +41,22 @@ const App: React.FC = () => {
   const [isSecure, setIsSecure] = useState(true);
 
   useEffect(() => {
+    const checkAdmin = async () => {
+      if (currentUser) {
+        const adminStatus = await logger.isAdmin();
+        setIsAdmin(adminStatus);
+      } else {
+        setIsAdmin(false);
+      }
+    };
+    checkAdmin();
+  }, [currentUser]);
+
+  useEffect(() => {
     const checkKey = async () => {
       if (window.aistudio) {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         if (!hasKey) {
-          // 如果是关键模块，可以提示用户选择 Key
           if (activeModule === LearningModule.VISION || activeModule === LearningModule.GLOBAL_CAREER) {
              console.warn("High-quality model requires an authorized API Key.");
           }
@@ -74,10 +85,10 @@ const App: React.FC = () => {
     if (autoShowPayment && !status.isPro) setShowPayment(true);
   };
 
-  const handleLogout = () => { logger.logout(); setCurrentUser(null); };
+  const handleLogout = () => { logger.logout(); setCurrentUser(null); setIsAdmin(false); };
 
   const renderModule = () => {
-    if (usageStats.isBanned) return <div>Banned</div>;
+    if (usageStats.isBanned) return <div className="p-12 text-center font-black text-rose-500">ACCOUNT SUSPENDED</div>;
     switch (activeModule) {
       case LearningModule.DASHBOARD: return <DashboardView onNavigate={setActiveModule} />;
       case LearningModule.VOCABULARY: return <VocabularyView onNavigate={setActiveModule} />;
@@ -90,7 +101,7 @@ const App: React.FC = () => {
       case LearningModule.VISION: return <VisionView />;
       case LearningModule.IELTS:
       case LearningModule.CAMBRIDGE: return <ExamPrepView type={activeModule as 'ielts' | 'cambridge'} />;
-      case LearningModule.ADMIN: return <AdminView />;
+      case LearningModule.ADMIN: return isAdmin ? <AdminView /> : <DashboardView onNavigate={setActiveModule} />;
       default: return <DashboardView onNavigate={setActiveModule} />;
     }
   };
@@ -108,7 +119,7 @@ const App: React.FC = () => {
     { id: LearningModule.IELTS, label: '雅思专区', icon: <GraduationCap size={20} /> },
   ];
 
-  if (currentUser?.phone === ADMIN_PHONE) menuItems.push({ id: LearningModule.ADMIN, label: '系统管理', icon: <Settings size={20} /> });
+  if (isAdmin) menuItems.push({ id: LearningModule.ADMIN, label: '系统管理', icon: <Settings size={20} /> });
 
   if (!currentUser) return <LoginView onLoginSuccess={handleLoginSuccess} />;
 
@@ -152,7 +163,6 @@ const App: React.FC = () => {
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 z-40">
           <h2 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" /> {menuItems.find(m => m.id === activeModule)?.label}</h2>
           <div className="flex items-center gap-6">
-            {/* 安全指示器 */}
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${isSecure ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
                <ShieldCheck size={14} className={isSecure ? 'animate-pulse' : ''} />
                <span className="text-[9px] font-black uppercase tracking-widest">{isSecure ? 'Secure Sync Active' : 'Security Alert'}</span>
