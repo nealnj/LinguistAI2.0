@@ -50,15 +50,17 @@ const VisionView: React.FC = () => {
     setError(null);
     try {
       const data = await generateVisionTrends();
-      // 验证数据完整性
-      if (data && (data.news?.length || data.songs?.length || data.movies?.length)) {
+      // 验证数据完整性，如果没有任何内容，则视为获取失败
+      const hasData = (data.news?.length > 0 || data.songs?.length > 0 || data.movies?.length > 0);
+      
+      if (data && hasData) {
         setTrends(data);
       } else {
-        throw new Error("EMPTY_DATA");
+        setError('目前未能从全球源爬取到活跃趋势。这可能是由于外部源暂不可用。');
       }
     } catch (e: any) {
       console.error("Vision Fetch Error:", e);
-      setError('无法获取当前全球趋势。AI 已降级为静态内容。请检查网络或稍后刷新。');
+      setError('全球视野引擎暂时连接中断。请检查您的网络连接或稍后重试。');
     } finally {
       setLoading(false);
     }
@@ -73,16 +75,17 @@ const VisionView: React.FC = () => {
     setSelectedItem({ ...item, type });
     setAnalyzing(true);
     setAnalysis(null);
+    setError(null);
     try {
       const data = await analyzeVisionItem(topic, type);
       if (data && data.article_en) {
         setAnalysis(data);
       } else {
-        throw new Error("EMPTY_DATA");
+        throw new Error("EMPTY_ANALYSIS");
       }
     } catch (e) {
       console.error("Analysis Error:", e);
-      setError("深度解析失败，请检查网络连接或稍后重试。");
+      setError("深度解析失败，AI 无法提取该条目的详细学习数据。");
       setSelectedItem(null);
     } finally {
       setAnalyzing(false);
@@ -227,7 +230,15 @@ const VisionView: React.FC = () => {
       </div>
 
       <div className="min-h-[400px]">
-        {loading ? renderScanningState() : (
+        {loading ? renderScanningState() : error ? (
+           <div className="w-full bg-white rounded-[4rem] p-20 border border-slate-100 text-center space-y-6 shadow-sm">
+             <div className="p-4 bg-rose-50 text-rose-500 rounded-full w-fit mx-auto"><AlertTriangle size={32} /></div>
+             <p className="text-slate-800 font-black text-xl">{error}</p>
+             <button onClick={fetchData} className="px-10 py-4 bg-indigo-600 text-white rounded-2xl font-bold flex items-center gap-3 mx-auto hover:bg-indigo-700 transition-all">
+               <RefreshCcw size={18} /> 尝试重新连接爬虫
+             </button>
+           </div>
+        ) : (
           <div className="space-y-12">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {trends?.[activeTab === 'songs' ? 'songs' : activeTab === 'movies' ? 'movies' : 'news']?.map((item: any, i: number) => (
