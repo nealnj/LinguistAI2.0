@@ -28,7 +28,8 @@ import {
   Quote,
   Eye,
   Info,
-  Stars
+  Stars,
+  Layout
 } from 'lucide-react';
 
 function decode(base64: string) {
@@ -63,7 +64,7 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlaying] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'systematic' | 'memory' | 'info'>('systematic');
   const [audioCache, setAudioCache] = useState<Record<string, AudioBuffer>>({});
   const [isFinished, setIsFinished] = useState(false);
@@ -84,7 +85,7 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
     setFailCount(0);
     setShowHint(false);
     try {
-      const newWords = await generateVocabulary('A1 Beginner');
+      const newWords = await generateVocabulary('A2-B1 Academic');
       setWords(newWords);
       setCurrentIndex(0);
     } catch (error) { console.error(error); } finally { setLoading(false); }
@@ -128,65 +129,51 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
     } catch (e) { console.error(e); }
   };
 
-  const playPronunciation = async (word: string) => {
-    if (isPlaying) return;
-    setIsPlaying(true);
+  const playPronunciation = async (textToPlay: string) => {
+    if (isPlaying === textToPlay) return;
+    setIsPlaying(textToPlay);
     try {
       if (!audioContextRef.current) audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const ctx = audioContextRef.current;
-      let buffer = audioCache[word];
+      let buffer = audioCache[textToPlay];
       if (!buffer) {
-        const base64Audio = await getSpeechAudio(word);
+        const base64Audio = await getSpeechAudio(textToPlay);
         if (base64Audio) {
           buffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
-          setAudioCache(prev => ({ ...prev, [word]: buffer }));
+          setAudioCache(prev => ({ ...prev, [textToPlay]: buffer }));
         }
       }
       if (buffer) {
         const source = ctx.createBufferSource();
         source.buffer = buffer;
         source.connect(ctx.destination);
-        source.onended = () => setIsPlaying(false);
+        source.onended = () => setIsPlaying(null);
         source.start();
-      } else { setIsPlaying(false); }
-    } catch (error) { setIsPlaying(false); }
+      } else { setIsPlaying(null); }
+    } catch (error) { setIsPlaying(null); }
   };
 
   const handleNext = () => {
     if (currentIndex < words.length - 1) { setCurrentIndex(currentIndex + 1); setUserInput(''); setShowHint(false); setFailCount(0); } else { setIsFinished(true); }
   };
 
-  const startReview = () => {
-    setReviewMode(true);
-    setCurrentIndex(0);
-    setUserInput('');
-    setReviewFeedback(null);
-    setFailCount(0);
-    setShowHint(false);
-  };
-
+  // Fix: Added checkReview function to handle user input validation in review mode
   const checkReview = () => {
-    const target = reviewMode ? words[currentIndex].word.toLowerCase() : '';
-    if (userInput.toLowerCase().trim() === target) {
+    const currentWord = words[currentIndex];
+    if (!currentWord) return;
+    const isCorrect = userInput.toLowerCase().trim() === currentWord.word.toLowerCase().trim();
+    if (isCorrect) {
       setReviewFeedback('correct');
-      playPronunciation(words[currentIndex].word);
       setTimeout(() => {
-        if (currentIndex < words.length - 1) {
-          setCurrentIndex(currentIndex + 1);
-          setUserInput('');
-          setReviewFeedback(null);
-          setFailCount(0);
-          setShowHint(false);
-        } else {
-          setReviewMode(false);
-          setIsFinished(true);
-        }
-      }, 800);
+        setReviewFeedback(null);
+        handleNext();
+      }, 1500);
     } else {
       setReviewFeedback('wrong');
-      const newFailCount = failCount + 1;
-      setFailCount(newFailCount);
-      if (newFailCount >= 3) setShowHint(true);
+      setFailCount(f => f + 1);
+      if (failCount >= 1) { 
+        setShowHint(true);
+      }
       setTimeout(() => setReviewFeedback(null), 1000);
     }
   };
@@ -198,41 +185,7 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
           <Loader2 className="animate-spin text-indigo-600" size={64} />
           <Stars className="absolute -top-2 -right-2 text-amber-400 animate-float" size={24} />
         </div>
-        <p className="text-slate-500 font-black uppercase tracking-widest text-sm">正在构建 4K 全真视觉词库...</p>
-      </div>
-    );
-  }
-
-  if (isFinished && !reviewMode) {
-    return (
-      <div className="max-w-4xl mx-auto py-12 animate-slide-up">
-        <div className="bg-white rounded-[4rem] shadow-2xl p-16 text-center border border-slate-100 overflow-hidden relative">
-          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500" />
-          <div className="relative z-10 flex flex-col items-center">
-            <div className="w-28 h-28 bg-amber-50 rounded-[2.5rem] flex items-center justify-center text-amber-500 mb-8 shadow-inner animate-float"><Trophy size={56} /></div>
-            <h2 className="text-5xl font-black text-slate-800 mb-4 tracking-tighter">本单元通关！</h2>
-            <p className="text-slate-500 mb-12 max-w-lg mx-auto text-lg leading-relaxed">系统已将今日词组存入您的长期记忆队列。第一次复习将在 <span className="text-indigo-600 font-black underline decoration-indigo-200 underline-offset-8">20分钟后</span> 开启。</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-xl mb-12">
-              <button onClick={startReview} className="flex items-center justify-center gap-3 py-6 rounded-[2rem] bg-slate-900 text-white font-black text-lg hover:bg-slate-800 shadow-2xl transition-all active:scale-95 group"><RefreshCw size={24} className="group-hover:rotate-180 transition-transform duration-700" /> 立即互动复现</button>
-              <button onClick={fetchWords} className="flex items-center justify-center gap-3 py-6 rounded-[2rem] bg-white border-2 border-slate-100 text-slate-700 font-black text-lg hover:bg-slate-50 shadow-sm active:scale-95"><BookOpen size={24} /> 继续学习新词</button>
-            </div>
-            <div className="w-full border-t border-slate-50 pt-12 mt-4">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-10">AI 推荐后续路径</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {[
-                  { module: LearningModule.SPEAKING, icon: <Mic2 size={24} />, label: '口语实战' },
-                  { module: LearningModule.WRITING, icon: <PenTool size={24} />, label: '写作润色' },
-                  { module: LearningModule.ROADMAP, icon: <ArrowRight size={24} />, label: '阶段路径' }
-                ].map((item, idx) => (
-                  <button key={idx} onClick={() => onNavigate && onNavigate(item.module)} className="flex flex-col items-center gap-4 p-8 rounded-[2.5rem] bg-slate-50 border border-slate-100 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all group animate-slide-up delay-100">
-                    <div className="text-slate-300 group-hover:text-indigo-600 transition-colors group-hover:animate-float">{item.icon}</div>
-                    <span className="text-xs font-black text-slate-500 group-hover:text-slate-800 uppercase tracking-widest">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        <p className="text-slate-500 font-black uppercase tracking-widest text-sm">正在构建逻辑词库...</p>
       </div>
     );
   }
@@ -276,11 +229,11 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
 
   return (
     <div className="max-w-7xl mx-auto flex flex-col gap-8 animate-in fade-in duration-700 pb-20">
-      <div className="flex items-center justify-between bg-white px-10 py-8 rounded-[3rem] border border-slate-100 shadow-sm animate-slide-up">
+      <div className="flex items-center justify-between bg-white px-10 py-6 rounded-3xl border border-slate-100 shadow-sm animate-slide-up">
         <div className="flex items-center gap-6">
           <div className="bg-indigo-600 p-4 rounded-[1.5rem] text-white shadow-xl animate-float"><BookOpen size={28} /></div>
           <div>
-            <h1 className="text-2xl font-black text-slate-800 tracking-tighter">系统词汇深度积累</h1>
+            <h1 className="text-2xl font-black text-slate-800 tracking-tighter">词汇逻辑分析</h1>
             <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-emerald-500" /> 当前任务: {currentIndex + 1} / {words.length}
             </p>
@@ -292,38 +245,91 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
       {currentWord && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-7 space-y-8 animate-slide-up delay-100">
-            <div className="bg-white rounded-[4rem] shadow-2xl p-16 border border-slate-100 relative overflow-hidden group text-center">
-              <div className="mb-4 px-4 py-2 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase inline-block shadow-sm">{currentWord.pos}</div>
-              <h2 className="text-8xl font-black text-slate-800 mb-4 tracking-tighter group-hover:scale-105 transition-transform duration-700">{currentWord.word}</h2>
-              <div className="flex items-center justify-center gap-6 text-slate-300 mb-12 font-mono text-3xl">
-                <span className="italic opacity-80">/{currentWord.phonetic}/</span>
-                <button onClick={() => playPronunciation(currentWord.word)} disabled={isPlaying} className={`p-6 rounded-[2rem] shadow-2xl transition-all ${isPlaying ? 'bg-indigo-600 text-white animate-pulse' : 'bg-white text-indigo-600 border border-indigo-50 hover:scale-110 active:scale-90 hover:shadow-indigo-100'}`}><Volume2 size={32} /></button>
+            <div className="bg-white rounded-[4rem] shadow-2xl p-16 border border-slate-100 relative group text-center">
+              <div className="mb-4 flex items-center justify-center gap-3">
+                <span className="px-4 py-2 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase shadow-sm border border-indigo-100">{currentWord.pos || 'N/A'}</span>
+                <span className="px-4 py-2 rounded-full bg-slate-50 text-slate-400 text-[10px] font-black uppercase shadow-sm">Target Word</span>
               </div>
               
-              <div className="w-full relative mb-12 overflow-hidden rounded-[3.5rem] bg-slate-50 border border-slate-100 min-h-[350px] flex items-center justify-center hover-subtle-zoom cursor-crosshair">
+              <h2 className="text-8xl font-black text-slate-800 mb-2 tracking-tighter group-hover:scale-105 transition-transform duration-700">{currentWord.word}</h2>
+              <p className="text-4xl font-black text-indigo-600 mb-6 tracking-tight">{currentWord.translation}</p>
+              
+              <div className="flex items-center justify-center gap-6 text-slate-300 mb-12 font-mono text-3xl">
+                <span className="italic opacity-80">/{currentWord.phonetic || '...'}/</span>
+                <button onClick={() => playPronunciation(currentWord.word)} className={`p-6 rounded-[2rem] shadow-2xl transition-all ${isPlaying === currentWord.word ? 'bg-indigo-600 text-white animate-pulse' : 'bg-white text-indigo-600 border border-indigo-50 hover:scale-110 active:scale-90 hover:shadow-indigo-100'}`}><Volume2 size={32} /></button>
+              </div>
+              
+              <div className="w-full relative mb-12 overflow-hidden rounded-[3.5rem] bg-slate-50 border border-slate-100 min-h-[350px] flex items-center justify-center hover-subtle-zoom cursor-crosshair shadow-inner">
                 {loadingImage ? (
-                  <div className="flex flex-col items-center gap-4"><Loader2 className="animate-spin text-indigo-300" size={48} /><span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">正在生成 8K 真实记忆锚点...</span></div>
+                  <div className="flex flex-col items-center gap-4"><Loader2 className="animate-spin text-indigo-300" size={48} /><span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">正在生成辅助记忆图像...</span></div>
                 ) : currentWord.imageUrl ? (
                   <img src={currentWord.imageUrl} className="w-full h-[400px] object-cover transition-all duration-1000" />
                 ) : (
                   <Sparkles size={80} className="text-indigo-100 animate-float" />
                 )}
                 <div className="absolute top-6 left-6 flex items-center gap-3">
-                  <div className="px-4 py-2 bg-white/90 backdrop-blur-md rounded-2xl text-[10px] font-black text-slate-800 uppercase shadow-xl flex items-center gap-2 border border-white/50"><Stars size={12} className="text-amber-400" /> 真实视觉记忆锚点</div>
+                  <div className="px-4 py-2 bg-white/90 backdrop-blur-md rounded-2xl text-[10px] font-black text-slate-800 uppercase shadow-xl flex items-center gap-2 border border-white/50"><Stars size={12} className="text-amber-400" /> 核心记忆锚点</div>
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 text-left mb-12 relative overflow-hidden">
+              {/* 例句及语法解构区 */}
+              <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 text-left mb-12 relative overflow-hidden space-y-8">
                 <div className="absolute -top-10 -right-10 text-slate-100/50"><Quote size={150} /></div>
-                <p className="text-5xl font-black text-slate-800 mb-6 tracking-tight relative z-10">{currentWord.translation}</p>
-                <div className="flex gap-4 relative z-10">
-                  <Quote size={28} className="text-indigo-200 shrink-0" />
-                  <p className="text-2xl italic text-slate-500 leading-relaxed font-medium">"{currentWord.example}"</p>
+                
+                <div className="space-y-4 relative z-10">
+                   <div className="flex items-center gap-3">
+                      <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg"><Info size={16} /></div>
+                      <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">语境深度应用 (Contextual Usage)</h4>
+                   </div>
+                   <div className="space-y-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <p className="text-3xl italic text-slate-800 leading-tight font-black">"{currentWord.example || 'Example processing...'}"</p>
+                        <button 
+                          onClick={() => playPronunciation(currentWord.example)}
+                          className={`shrink-0 p-4 rounded-2xl transition-all shadow-md ${isPlaying === currentWord.example ? 'bg-indigo-600 text-white animate-pulse' : 'bg-white text-slate-300 hover:text-indigo-600'}`}
+                        >
+                          <Volume2 size={24} />
+                        </button>
+                      </div>
+                      <p className="text-xl text-slate-500 font-bold border-l-4 border-indigo-200 pl-4">{currentWord.exampleTranslation || '翻译加载中...'}</p>
+                   </div>
+                </div>
+
+                {/* 句法结构透视卡片 */}
+                <div className="bg-white/80 backdrop-blur-sm p-8 rounded-[2.5rem] border border-slate-200/50 space-y-6 relative z-10 shadow-sm">
+                   <div className="flex items-center justify-between">
+                      <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest"><Layout size={14} /> 句法结构透视 (Syntactic Mapping)</h5>
+                      <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase">{currentWord.exampleStructure?.sentenceType || "Parsing..."}</span>
+                   </div>
+
+                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
+                         <span className="text-[8px] font-black text-blue-500 uppercase block mb-1">Subject</span>
+                         <span className="text-sm font-black text-blue-900">{currentWord.exampleStructure?.analysis.subject || '-'}</span>
+                      </div>
+                      <div className="p-4 bg-rose-50/50 rounded-2xl border border-rose-100">
+                         <span className="text-[8px] font-black text-rose-500 uppercase block mb-1">Verb</span>
+                         <span className="text-sm font-black text-rose-900">{currentWord.exampleStructure?.analysis.verb || '-'}</span>
+                      </div>
+                      <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
+                         <span className="text-[8px] font-black text-emerald-500 uppercase block mb-1">Object</span>
+                         <span className="text-sm font-black text-emerald-900">{currentWord.exampleStructure?.analysis.object || '-'}</span>
+                      </div>
+                      <div className="p-4 bg-slate-100/50 rounded-2xl border border-slate-200">
+                         <span className="text-[8px] font-black text-slate-400 uppercase block mb-1">Others</span>
+                         <span className="text-sm font-black text-slate-600">{currentWord.exampleStructure?.analysis.others || '-'}</span>
+                      </div>
+                   </div>
+
+                   <div className="pt-4 border-t border-slate-100">
+                      <p className="text-xs text-slate-500 leading-relaxed italic"><span className="font-black text-indigo-600 mr-2">逻辑详解:</span> {currentWord.exampleStructure?.explanation || '结构化分析正在生成...'}</p>
+                   </div>
                 </div>
               </div>
+
               <div className="flex gap-6">
                 <button disabled={currentIndex === 0} onClick={() => setCurrentIndex(currentIndex - 1)} className="p-7 rounded-[2rem] border border-slate-100 text-slate-300 hover:text-slate-800 hover:bg-slate-50 disabled:opacity-20 transition-all active:scale-95"><ChevronLeft size={32} /></button>
-                <button onClick={handleNext} className="flex-1 py-7 rounded-[2rem] bg-slate-900 text-white font-black text-xl hover:bg-indigo-700 shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-4">{currentIndex === words.length - 1 ? '全组达成，进入复习' : '我记住了，继续进阶'} <ChevronRight size={28} /></button>
+                <button onClick={handleNext} className="flex-1 py-7 rounded-[2rem] bg-slate-900 text-white font-black text-xl hover:bg-indigo-700 shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-4">{currentIndex === words.length - 1 ? '进入复习' : '继续探索'} <ChevronRight size={28} /></button>
               </div>
             </div>
           </div>
@@ -345,17 +351,37 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
                   <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3"><GitBranch size={16} /> 变形逻辑深度分析</h4>
                     <div className="space-y-8">
-                      {currentWord.forms?.map((f, i) => (
-                        <div key={i} className="bg-indigo-50/30 p-8 rounded-[2.5rem] border border-indigo-100/50 space-y-4 hover:bg-indigo-50/50 transition-colors group">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4"><span className="font-black text-2xl text-indigo-700 tracking-tight">{f.form}</span><button onClick={() => playPronunciation(f.form)} className="p-2 rounded-xl bg-white shadow-md text-indigo-400 hover:text-indigo-600 hover:scale-110 active:scale-90 transition-all"><Volume2 size={16} /></button></div>
-                            <span className="text-[10px] font-black text-indigo-400 bg-white px-3 py-1 rounded-full shadow-sm">{f.pos}</span>
+                      {currentWord.forms && currentWord.forms.length > 0 ? (
+                        currentWord.forms.map((f, i) => (
+                          <div key={i} className="bg-indigo-50/30 p-8 rounded-[2.5rem] border border-indigo-100/50 space-y-4 hover:bg-indigo-50/50 transition-colors group">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-4">
+                                <span className="font-black text-2xl text-indigo-700 tracking-tight">{f.form || 'Loading...'}</span>
+                                <button onClick={() => playPronunciation(f.form)} className={`p-2 rounded-xl shadow-md transition-all ${isPlaying === f.form ? 'bg-indigo-600 text-white animate-pulse' : 'bg-white text-indigo-400 hover:text-indigo-600 hover:scale-110'}`}>
+                                  <Volume2 size={16} />
+                                </button>
+                              </div>
+                              <span className="text-[10px] font-black text-indigo-400 bg-white px-3 py-1 rounded-full shadow-sm">{f.pos || 'N/A'}</span>
+                            </div>
+                            <div className="text-sm text-slate-400 font-mono tracking-wide">/{f.phonetic || '...'}/ • <span className="font-black text-slate-800">{f.meaning || '含义解析中...'}</span></div>
+                            <div className="relative group/example">
+                              <p className="text-sm text-slate-500 italic bg-white/60 p-5 rounded-2xl border border-indigo-50 shadow-inner pr-12">"{f.example || 'Example processing...'}"</p>
+                              <button 
+                                onClick={() => playPronunciation(f.example)}
+                                className={`absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${isPlaying === f.example ? 'text-indigo-600 scale-110 animate-pulse' : 'text-slate-300 hover:text-indigo-600'}`}
+                              >
+                                <Volume2 size={14} />
+                              </button>
+                            </div>
+                            <div className="text-[11px] text-indigo-500 leading-relaxed font-bold bg-white/40 px-5 py-3 rounded-2xl border border-indigo-50/50 italic"><span className="font-black text-indigo-700 mr-2">变形依据:</span> {f.derivationReason || 'AI 正在分析词缀逻辑...'}</div>
                           </div>
-                          <div className="text-sm text-slate-400 font-mono tracking-wide">/{f.phonetic}/ • <span className="font-black text-slate-800">{f.meaning}</span></div>
-                          <p className="text-sm text-slate-500 italic bg-white/60 p-5 rounded-2xl border border-indigo-50 shadow-inner">"{f.example}"</p>
-                          <div className="text-[11px] text-indigo-500 leading-relaxed font-bold bg-white/40 px-5 py-3 rounded-2xl border border-indigo-50/50 italic"><span className="font-black text-indigo-700 mr-2">变形依据:</span> {f.derivationReason}</div>
+                        ))
+                      ) : (
+                        <div className="text-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100 space-y-4">
+                          <Loader2 className="animate-spin text-indigo-300 mx-auto" size={32} />
+                          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">派生词系谱构建中...</p>
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
                 )}
@@ -368,23 +394,24 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
                         {currentWord.relatedWords?.synonym?.map((s, i) => (
                           <div key={i} className="bg-emerald-50/30 p-6 rounded-[2rem] border border-emerald-100/50 group hover:bg-emerald-50/50 transition-colors">
                             <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-3"><span className="font-black text-lg text-emerald-800">{s.word}</span><button onClick={() => playPronunciation(s.word)} className="text-emerald-400 hover:scale-110 transition-all"><Volume2 size={14} /></button></div>
+                              <div className="flex items-center gap-3">
+                                <span className="font-black text-lg text-emerald-800">{s.word}</span>
+                                <button onClick={() => playPronunciation(s.word)} className={`transition-all ${isPlaying === s.word ? 'text-emerald-600 animate-pulse' : 'text-emerald-400 hover:scale-110'}`}>
+                                  <Volume2 size={14} />
+                                </button>
+                              </div>
                               <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest bg-white px-3 py-1 rounded-full">Synonym</span>
                             </div>
                             <p className="text-sm text-slate-600"><span className="font-mono text-[11px] opacity-60 mr-2">/{s.phonetic}/</span> {s.meaning}</p>
-                            <p className="text-[11px] text-slate-400 italic mt-2 bg-white/30 p-2 rounded-lg leading-relaxed">"{s.example}"</p>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                    <section className="space-y-6">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3"><Link size={16} /> 高频固定搭配</h4>
-                      <div className="grid grid-cols-1 gap-4">
-                        {currentWord.phrases?.map((p, i) => (
-                          <div key={i} className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 hover:shadow-inner transition-shadow">
-                             <h5 className="font-black text-slate-800 text-lg mb-1 tracking-tight">{p.phrase}</h5>
-                             <p className="text-xs text-indigo-600 font-black mb-3">{p.translation}</p>
-                             <div className="text-[11px] text-slate-400 italic leading-relaxed bg-white/50 p-3 rounded-xl">"{p.example}"</div>
+                            <div className="relative">
+                              <p className="text-[11px] text-slate-400 italic mt-2 bg-white/30 p-2 rounded-lg leading-relaxed pr-8">"{s.example}"</p>
+                              <button 
+                                onClick={() => playPronunciation(s.example)}
+                                className={`absolute right-1 bottom-1 p-1 transition-all ${isPlaying === s.example ? 'text-emerald-600 animate-pulse' : 'text-slate-200 hover:text-emerald-500'}`}
+                              >
+                                <Volume2 size={12} />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -399,19 +426,15 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
                        <div className="relative z-10">
                          <span className="text-[10px] font-black text-slate-400 uppercase block mb-4 tracking-[0.3em]">词根词缀透视</span>
                          <div className="flex flex-wrap gap-4">
-                           <div className="bg-white px-5 py-3 rounded-2xl text-lg font-black border border-slate-100 shadow-sm flex items-center gap-2"><span className="text-indigo-600 text-[10px]">ROOT</span> {currentWord.roots}</div>
+                           <div className="bg-white px-5 py-3 rounded-2xl text-lg font-black border border-slate-100 shadow-sm flex items-center gap-2"><span className="text-indigo-600 text-[10px]">ROOT</span> {currentWord.roots || 'N/A'}</div>
                            <div className="text-slate-300 self-center text-2xl">+</div>
-                           <div className="bg-white px-5 py-3 rounded-2xl text-lg font-black border border-slate-100 shadow-sm flex items-center gap-2"><span className="text-purple-600 text-[10px]">AFFIX</span> {currentWord.affixes}</div>
+                           <div className="bg-white px-5 py-3 rounded-2xl text-lg font-black border border-slate-100 shadow-sm flex items-center gap-2"><span className="text-purple-600 text-[10px]">AFFIX</span> {currentWord.affixes || 'N/A'}</div>
                          </div>
-                       </div>
-                       <div className="relative z-10">
-                         <span className="text-[10px] font-black text-slate-400 uppercase block mb-4 tracking-[0.3em]">语源脉络</span>
-                         <p className="text-sm text-slate-500 italic leading-relaxed font-medium bg-white/50 p-6 rounded-3xl border border-slate-100">{currentWord.etymology}</p>
                        </div>
                        <div className="relative z-10 bg-amber-50 p-8 rounded-[2.5rem] border-2 border-amber-100 shadow-xl animate-float">
                          <span className="text-[10px] font-black text-amber-600 uppercase block mb-3 tracking-[0.3em] flex items-center gap-2"><Puzzle size={14} /> 记忆锚点</span>
                          <p className="text-lg text-amber-900 leading-tight font-black">{currentWord.mnemonic}</p>
-                         <p className="text-xs text-amber-700/60 mt-4 italic font-bold">"{currentWord.memoryTip}"</p>
+                         <p className="text-xs text-amber-700/60 mt-4 italic font-bold">"{currentWord.memoryTip || 'Connect with logic.'}"</p>
                        </div>
                     </div>
                   </div>
@@ -428,7 +451,7 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
               <div className="space-y-4 relative z-10">
                 <div className="flex justify-between text-sm font-black"><span>当前记忆负载</span><span className="text-indigo-400">{Math.round(((currentIndex + 1) / words.length) * 100)}%</span></div>
                 <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden border border-white/5"><div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000 shadow-[0_0_15px_rgba(99,102,241,0.5)]" style={{ width: `${((currentIndex + 1) / words.length) * 100}%` }} /></div>
-                <p className="text-[11px] text-slate-500 mt-4 italic leading-relaxed font-medium">系统已针对您的 0 基础定制化该词组。完成全组 5 个词后，建议立即通过“互动复现”加深皮层映射。</p>
+                <p className="text-[11px] text-slate-500 mt-4 italic leading-relaxed font-medium">系统已针对您的基础定制化该词组。完成全组 5 个词后，建议立即通过“互动复现”加深皮层映射。</p>
               </div>
             </div>
           </div>

@@ -1,13 +1,70 @@
 
-import React, { useState } from 'react';
-import { analyzeWriting } from '../services/geminiService';
+import React, { useState, useRef } from 'react';
+import { analyzeWriting, getSpeechAudio } from '../services/geminiService';
 import { WritingAnalysis } from '../types';
-import { Send, Loader2, CheckCircle2, AlertCircle, Sparkles, PenTool, ChevronRight } from 'lucide-react';
+import { Send, Loader2, CheckCircle2, AlertCircle, Sparkles, PenTool, ChevronRight, Volume2 } from 'lucide-react';
+
+// Audio decoding logic
+function decode(base64: string) {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function decodeAudioData(
+  data: Uint8Array,
+  ctx: AudioContext,
+  sampleRate: number,
+  numChannels: number,
+): Promise<AudioBuffer> {
+  const dataInt16 = new Int16Array(data.buffer);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
+  }
+  return buffer;
+}
 
 const WritingView: React.FC = () => {
   const [text, setText] = useState('');
   const [analysis, setAnalysis] = useState<WritingAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState<string | null>(null);
+  
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  const playText = async (textToPlay: string) => {
+    if (isPlaying === textToPlay) return;
+    setIsPlaying(textToPlay);
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      }
+      const ctx = audioContextRef.current;
+      const base64Audio = await getSpeechAudio(textToPlay);
+      if (base64Audio) {
+        const buffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.onended = () => setIsPlaying(null);
+        source.start();
+      } else {
+        setIsPlaying(null);
+      }
+    } catch (e) {
+      console.error(e);
+      setIsPlaying(null);
+    }
+  };
 
   const handleAnalyze = async () => {
     if (!text.trim()) return;
@@ -107,9 +164,25 @@ const WritingView: React.FC = () => {
                 {analysis.corrections?.length > 0 ? analysis.corrections.map((corr, i) => (
                   <div key={i} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
                     <div className="flex items-center gap-2 text-sm">
-                      <span className="line-through text-slate-400 bg-slate-50 px-2 py-0.5 rounded">{corr.original}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="line-through text-slate-400 bg-slate-50 px-2 py-0.5 rounded">{corr.original}</span>
+                        <button 
+                          onClick={() => playText(corr.original)}
+                          className={`p-1 rounded text-slate-300 hover:text-rose-400 transition-colors ${isPlaying === corr.original ? 'text-rose-500' : ''}`}
+                        >
+                          <Volume2 size={14} />
+                        </button>
+                      </div>
                       <ChevronRight size={14} className="text-slate-300" />
-                      <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{corr.suggested}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{corr.suggested}</span>
+                        <button 
+                          onClick={() => playText(corr.suggested)}
+                          className={`p-1 rounded text-slate-300 hover:text-emerald-500 transition-colors ${isPlaying === corr.suggested ? 'text-emerald-600 shadow-sm animate-pulse' : ''}`}
+                        >
+                          <Volume2 size={14} />
+                        </button>
+                      </div>
                     </div>
                     <p className="text-xs text-slate-500 leading-relaxed"><span className="font-bold">原因:</span> {corr.reason}</p>
                   </div>
@@ -119,8 +192,16 @@ const WritingView: React.FC = () => {
               </div>
 
               {/* General Feedback */}
-              <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-2xl">
-                 <h4 className="font-bold text-indigo-800 mb-2">导师点评</h4>
+              <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-2xl relative">
+                 <div className="flex justify-between items-center mb-2">
+                   <h4 className="font-bold text-indigo-800">导师点评</h4>
+                   <button 
+                      onClick={() => playText(analysis.feedback)}
+                      className={`p-2 rounded-xl transition-all ${isPlaying === analysis.feedback ? 'bg-indigo-600 text-white shadow-lg animate-pulse' : 'text-indigo-300 hover:text-indigo-600'}`}
+                   >
+                     <Volume2 size={18} />
+                   </button>
+                 </div>
                  <p className="text-sm text-indigo-700 leading-relaxed">{analysis.feedback}</p>
               </div>
             </div>
