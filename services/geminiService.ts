@@ -1,118 +1,243 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { logger } from "./logger";
 
-const TEXT_MODEL = 'gemini-3-flash-preview';
+// 模型常量
+const FLASH_TXT = 'gemini-3-flash-preview'; 
+const PRO_TXT = 'gemini-3-pro-preview';
+const FLASH_IMG = 'gemini-2.5-flash-image';
+const FLASH_TTS = 'gemini-2.5-flash-preview-tts';
 
-const CACHE_TTL = {
-  ROADMAP: 1000 * 60 * 60 * 24,
-  LESSON: 1000 * 60 * 60 * 12,
-  ARTICLE: 1000 * 60 * 60 * 2,
-  VOCAB: 1000 * 60 * 30
-};
+/**
+ * 核心安全调用封装 (Secure API Wrapper)
+ * 1. 采用即时实例化：防止持久化对象被内存嗅探
+ * 2. 严格错误过滤：确保错误信息中不携带敏感 Credential
+ */
+async function aiCall<T>(fn: (ai: GoogleGenAI) => Promise<T>, retries = 3): Promise<T> {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) throw new Error('SECURE_CONTEXT_MISSING');
 
-const getCacheKey = (type: string, context: string = '') => {
-  const user = logger.getCurrentUser();
-  const level = logger.getMasterProgress().overallLevel;
-  return `linguist_cache_${user?.phone}_${type}_${level}_${context}`;
-};
-
-const getFromCache = (key: string) => {
-  const cached = localStorage.getItem(key);
-  if (!cached) return null;
-  const { data, timestamp, ttl } = JSON.parse(cached);
-  if (Date.now() - timestamp > ttl) {
-    localStorage.removeItem(key);
-    return null;
-  }
-  return data;
-};
-
-const saveToCache = (key: string, data: any, ttl: number) => {
-  localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now(), ttl }));
-};
-
-async function callWithRetry<T>(fn: () => Promise<T>, retries = 2, delay = 2000): Promise<T> {
+  const ai = new GoogleGenAI({ apiKey });
+  
   try {
-    return await fn();
+    return await fn(ai);
   } catch (error: any) {
-    const errorMsg = error.message || "";
-    if (errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED')) {
-      if (retries > 0) {
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return callWithRetry(fn, retries - 1, delay * 2);
-      }
+    const msg = error.message || "";
+    const sanitizedMsg = msg.replace(new RegExp(apiKey, 'g'), '***SECRET***');
+    console.error(`[Secure Context Error]: ${sanitizedMsg}`);
+
+    if (msg.includes('Requested entity was not found') || msg.includes('403') || msg.includes('API_KEY_INVALID')) {
+       throw new Error('AUTH_INVALID');
     }
-    throw error;
+    
+    if ((msg.includes('429') || msg.includes('500') || msg.includes('RESOURCE_EXHAUSTED')) && retries > 0) {
+      const delay = (4 - retries) * 2000;
+      await new Promise(r => setTimeout(r, delay));
+      return aiCall(fn, retries - 1);
+    }
+    throw new Error(sanitizedMsg);
   }
 }
 
-const getLearningContext = () => {
-  const progress = logger.getMasterProgress();
-  return {
-    level: progress.overallLevel,
-    skills: progress.skills,
-    spec: progress.specialization
-  };
+const cache = {
+  get: (key: string) => {
+    const raw = localStorage.getItem(`la_c_v5_${key}`);
+    if (!raw) return null;
+    const { d, e } = JSON.parse(raw);
+    return Date.now() < e ? d : null;
+  },
+  set: (key: string, d: any, h = 12) => {
+    localStorage.setItem(`la_c_v5_${key}`, JSON.stringify({ d, e: Date.now() + h * 3600000 }));
+  }
 };
 
-export const generateVocabulary = async (topic: string = 'General') => {
-  const cacheKey = getCacheKey('vocab', topic);
-  const cached = getFromCache(cacheKey);
+/**
+ * 深度解析 Vision 内容
+ */
+export const analyzeVisionItem = async (topic: string, type: 'news' | 'song' | 'movie') => {
+  return aiCall(async (ai) => {
+    const prompt = `Search and analyze the specific content for: "${topic}" (${type}). Generate educational JSON {article_en, article_cn, vocab:[{w,t,e}], collocations:[{phrase,meaning,usage}], expressions:[{exp,meaning,context}], structures:[{s,logic}]}`;
+    const response = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }]
+      }
+    });
+    return JSON.parse(response.text || '{}');
+  });
+};
+
+/**
+ * 实时全球趋势发现
+ */
+export const generateVisionTrends = async () => {
+  const vKey = 'vision_trends_v1';
+  const cached = cache.get(vKey);
   if (cached) return cached;
 
-  return callWithRetry(async () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const context = getLearningContext();
-    
-    const prompt = `You are an expert Lexicographer. Generate 5 high-impact vocabulary words. 
-    Target Level: CEFR B2/C1. Topic: ${topic}. Focus Domain: ${context.spec}.
-    
-    REQUIRED JSON STRUCTURE FOR EACH WORD:
-    - word: String
-    - phonetic: IPA
-    - translation: Chinese
-    - pos: e.g. "Verb"
-    - example: High-quality English sentence
-    - exampleTranslation: Chinese translation of example
-    - exampleStructure: { sentenceType, analysis: { subject, verb, object, others }, explanation: Chinese analysis }
-    - mnemonic: Bilingual memory trick
-    - forms: Array(2-3 items). EACH ITEM MUST BE FULLY POPULATED:
-        { 
-          form: "The derived word", 
-          pos: "Part of speech", 
-          phonetic: "IPA", 
-          meaning: "Chinese meaning", 
-          example: "Short English sentence using this form", 
-          derivationReason: "Chinese explanation of the morphological change (e.g. adding -ly suffix for adverb)" 
-        }
-    - roots: Root/Prefix info
-    - affixes: Suffix info
-    - etymology: History in Chinese
-    - visualPrompt: Image generation prompt
-    
-    MANDATORY: Do NOT leave "forms" empty. Provide at least 2 derived forms (noun, adj, or adv) for each word. 
-    Ensure every sub-field in "forms" has high-quality content.`;
-
+  return aiCall(async (ai) => {
+    const prompt = `Search and identify 3 high-quality English trending items in News, Songs, Movies. Output BILINGUAL JSON.`;
     const response = await ai.models.generateContent({
-      model: TEXT_MODEL,
+      model: FLASH_TXT,
       contents: prompt,
-      config: { responseMimeType: "application/json" }
+      config: {
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }]
+      }
     });
-    const result = JSON.parse(response.text || '[]');
-    saveToCache(cacheKey, result, CACHE_TTL.VOCAB);
+    const result = JSON.parse(response.text || '{}');
+    cache.set(vKey, result, 6);
     return result;
   });
 };
 
-// ... Rest of the functions remain same
-export const generateGrammarLesson = async (topic: string) => { const cacheKey = getCacheKey('grammar_lesson', topic); const cached = getFromCache(cacheKey); if (cached) return cached; return callWithRetry(async () => { const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); const context = getLearningContext(); const prompt = `Senior Linguist Topic: "${topic}". Level: ${context.skills.grammar}. Structure Breakdown needed. Return GrammarLesson JSON. Bilingual EN/CN.`; const response = await ai.models.generateContent({ model: TEXT_MODEL, contents: prompt, config: { responseMimeType: "application/json" } }); const result = JSON.parse(response.text || '{}'); saveToCache(cacheKey, result, CACHE_TTL.LESSON); return result; }); };
-export const generateGrammarQuiz = async (topic: string) => { const cacheKey = getCacheKey('grammar_quiz', topic); const cached = getFromCache(cacheKey); if (cached) return cached; return callWithRetry(async () => { const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); const prompt = `Create 3 grammar quiz questions for: ${topic}. Detailed EN/CN reasoning required. Return JSON for GrammarQuiz[].`; const response = await ai.models.generateContent({ model: TEXT_MODEL, contents: prompt, config: { responseMimeType: "application/json" } }); const result = JSON.parse(response.text || '[]'); saveToCache(cacheKey, result, CACHE_TTL.LESSON); return result; }); };
-export const generateLearningPlan = async (userGoal: string) => { const cacheKey = getCacheKey('roadmap', userGoal); const cached = getFromCache(cacheKey); if (cached) return cached; return callWithRetry(async () => { const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); const response = await ai.models.generateContent({ model: TEXT_MODEL, contents: `Roadmap for ${userGoal}. Level ${logger.getMasterProgress().overallLevel}. Return RoadmapStep[] JSON.`, config: { responseMimeType: "application/json" } }); const result = JSON.parse(response.text || '[]'); saveToCache(cacheKey, result, CACHE_TTL.ROADMAP); return result; }); };
-export const generateReadingArticle = async (category: string, progress: any) => { const cacheKey = getCacheKey('reading_article', `${category}_${progress.currentLevel}`); const cached = getFromCache(category); if (cached) return cached; return callWithRetry(async () => { const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); const prompt = `Reading Article. Level ${progress.currentLevel}. Category: ${category}. Return ReadingArticle JSON.`; const response = await ai.models.generateContent({ model: TEXT_MODEL, contents: prompt, config: { responseMimeType: "application/json" } }); const result = JSON.parse(response.text || '{}'); saveToCache(cacheKey, result, CACHE_TTL.ARTICLE); return result; }); };
-export const generateMentorAdvice = async (activeModule: string, userMessage?: string) => { const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); const context = getLearningContext(); const prompt = `You are "Linguist Pro". USER: Level ${context.level}. Module: ${activeModule}. ${userMessage ? `Question: ${userMessage}` : `Give proactive advice.`} Return JSON: { "advice": "string", "actionableTip": "string" }`; const response = await ai.models.generateContent({ model: TEXT_MODEL, contents: prompt, config: { responseMimeType: "application/json" } }); return JSON.parse(response.text || '{"advice": "Keep going!", "actionableTip": "Continue practicing."}'); };
-export const getSpeechAudio = async (text: string) => { return callWithRetry(async () => { const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); const response = await ai.models.generateContent({ model: "gemini-2.5-flash-preview-tts", contents: [{ parts: [{ text: text }] }], config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } }, }, }); return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data; }); };
-export const generateReviewQuiz = async (notes: any[]) => { const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); const content = notes.map(n => n.text).join('\n'); const response = await ai.models.generateContent({ model: TEXT_MODEL, contents: `Quiz for notes:\n${content}`, config: { responseMimeType: "application/json" } }); return JSON.parse(response.text || '[]'); };
-export const analyzeWriting = async (text: string) => { const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); const response = await ai.models.generateContent({ model: TEXT_MODEL, contents: `Analyze writing: ${text}`, config: { responseMimeType: "application/json" } }); return JSON.parse(response.text || '{"score": 0, "feedback": "", "corrections": []}'); };
-export const getExamTips = async (examType: string) => { const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); const response = await ai.models.generateContent({ model: TEXT_MODEL, contents: `Tips for ${examType}` }); return response.text || ''; };
-export const generateImage = async (prompt: string) => { return callWithRetry(async () => { const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); const response = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [{ text: prompt }] }, config: { imageConfig: { aspectRatio: "1:1" } }, }); for (const part of response.candidates[0].content.parts) { if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`; } return null; }); };
+/**
+ * 全球职业洞察
+ */
+export const generateGlobalInsights = async (country: string) => {
+  const cKey = `ins_${country}_v2`;
+  const cached = cache.get(cKey);
+  if (cached) return cached;
+
+  return aiCall(async (ai) => {
+    const prompt = `Search 2024-2025 job market, immigration, and visa for ${country}. Output BILINGUAL JSON with news (including official URLs), visa policies, market trends, and salary history.`;
+    const response = await ai.models.generateContent({
+      model: PRO_TXT,
+      contents: prompt,
+      config: { 
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }] 
+      }
+    });
+    const result = JSON.parse(response.text || '{}');
+    cache.set(cKey, result); 
+    return result;
+  });
+};
+
+export const generateVocabulary = async (topic: string) => {
+  return aiCall(async (ai) => {
+    const res = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Generate 5 vocabulary words for topic: ${topic}. Each word must have phonetic, translation, pos, example, exampleTranslation, exampleStructure(sentenceType, analysis{subject,verb,object,others}, explanation), mnemonic, visualPrompt, forms, relatedWords, roots, etymology, memoryTip. Output JSON array.`,
+      config: { responseMimeType: "application/json" }
+    });
+    return JSON.parse(res.text || '[]');
+  });
+};
+
+export const generateImage = async (p: string) => {
+  return aiCall(async (ai) => {
+    const res = await ai.models.generateContent({
+      model: FLASH_IMG,
+      contents: { parts: [{ text: `High-quality educational 3D illustration for: ${p}` }] }
+    });
+    for (const part of res.candidates[0].content.parts) {
+      if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+    }
+    return null;
+  });
+};
+
+export const getSpeechAudio = async (text: string) => {
+  return aiCall(async (ai) => {
+    const res = await ai.models.generateContent({
+      model: FLASH_TTS,
+      contents: [{ parts: [{ text }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } }
+      }
+    });
+    return res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  });
+};
+
+export const analyzeWriting = async (text: string) => {
+  return aiCall(async (ai) => {
+    const res = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Professional English correction for: "${text}". Provide score out of 90, detailed feedback, and array of corrections {original, suggested, reason}. Output JSON.`,
+      config: { responseMimeType: "application/json" }
+    });
+    return JSON.parse(res.text || '{}');
+  });
+};
+
+export const generateGrammarLesson = async (topic: string) => {
+  return aiCall(async (ai) => {
+    const res = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Detailed grammar lesson for: ${topic}. Include title, concept, analogy, structureBreakdown (sentence, sentenceType, analysis{subject,verb,object,others}, explanation, collocationTip), and rules[]. Output JSON.`,
+      config: { responseMimeType: "application/json" }
+    });
+    return JSON.parse(res.text || '{}');
+  });
+};
+
+export const generateReadingArticle = async (category: string, progress: any) => {
+  return aiCall(async (ai) => {
+    const res = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Educational reading article for category: ${category}, Level ${progress.currentLevel}. Include title, chineseTitle, content, curriculumGoal, keyWords[], and questions[]. Output JSON.`,
+      config: { responseMimeType: "application/json" }
+    });
+    return JSON.parse(res.text || '{}');
+  });
+};
+
+export const generateMentorAdvice = async (mod: string, msg?: string) => {
+  return aiCall(async (ai) => {
+    const prompt = msg ? `As an AI mentor, answer this user question about ${mod}: "${msg}". Output JSON {advice, actionableTip}` : `Give a short motivational advice for ${mod} module. Output JSON {advice, actionableTip}`;
+    const res = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: prompt,
+      config: { responseMimeType: "application/json" }
+    });
+    return JSON.parse(res.text || '{}');
+  });
+};
+
+export const generateLearningPlan = async (goal: string) => {
+  return aiCall(async (ai) => {
+    const res = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Create a 5-stage systematic learning roadmap for goal: ${goal}. Output JSON array of {stage, focus:[]}.`,
+      config: { responseMimeType: "application/json" }
+    });
+    return JSON.parse(res.text || '[]');
+  });
+};
+
+export const generateGrammarQuiz = async (topic: string) => {
+  return aiCall(async (ai) => {
+    const res = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Generate 3 interactive grammar quiz questions for: ${topic}. Include question, options[], answer (index), and detailedAnalysis {logic, structure, collocations}. Output JSON array.`,
+      config: { responseMimeType: "application/json" }
+    });
+    return JSON.parse(res.text || '[]');
+  });
+};
+
+export const generateReviewQuiz = async (notes: any[]) => {
+  return aiCall(async (ai) => {
+    const res = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Based on these study notes: ${JSON.stringify(notes)}, generate a personalized review quiz. Output JSON array of {question, options:[], answer, explanation}.`,
+      config: { responseMimeType: "application/json" }
+    });
+    return JSON.parse(res.text || '[]');
+  });
+};
+
+export const getExamTips = async (type: string) => {
+  return aiCall(async (ai) => {
+    const res = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Provide 3 expert tips for the ${type} exam. Be concise and professional.`
+    });
+    return res.text || '';
+  });
+};

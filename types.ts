@@ -11,18 +11,21 @@ export enum LearningModule {
   CAMBRIDGE = 'cambridge',
   ROADMAP = 'roadmap',
   PROFILE = 'profile',
-  ADMIN = 'admin'
+  ADMIN = 'admin',
+  GLOBAL_CAREER = 'global_career',
+  VISION = 'vision' // 新增：AI 寰宇视野（资讯、音乐、电影）
 }
 
+// ... 保持原有接口不变
 export interface User {
   phone: string;
   password?: string;
   name: string;
   regDate: number;
-  subExpiry: number; // Timestamp
-  dailyUsage: { [date: string]: number }; // seconds used per date
+  subExpiry: number;
+  dailyUsage: { [date: string]: number };
   isBanned?: boolean;
-  lastLoginDate?: string; // YYYY-MM-DD
+  lastLoginDate?: string;
 }
 
 export interface MasterProgress {
@@ -44,41 +47,16 @@ export interface RoadmapStep {
   status: 'locked' | 'current' | 'completed';
 }
 
-export interface GrammarLesson {
-  title: string;
-  concept: string; 
-  analogy: string; 
-  rules: { title: string; content: string }[];
-  examples: { english: string; chinese: string; note: string }[];
-  structureBreakdown: {
-    sentence: string;
-    sentenceType: string;
-    analysis: {
-      subject: string;
-      verb: string;
-      object: string;
-      others: string;
-    };
-    explanation: string;
-    collocationTip?: string;
-  }[];
-}
-
 export interface VocabularyWord {
   word: string;
   phonetic: string;
   translation: string;
-  pos: string; // Part of Speech
+  pos: string;
   example: string;
-  exampleTranslation: string; // NEW: Example Chinese translation
-  exampleStructure: { // NEW: Deep breakdown for the main example
+  exampleTranslation: string;
+  exampleStructure: {
     sentenceType: string;
-    analysis: {
-      subject: string;
-      verb: string;
-      object: string;
-      others: string;
-    };
+    analysis: { subject: string; verb: string; object: string; others: string };
     explanation: string;
   };
   mnemonic: string;
@@ -93,11 +71,39 @@ export interface VocabularyWord {
   memoryTip?: string;
 }
 
+export interface ReadingProgress {
+  category: string;
+  currentLevel: number;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  completedArticles: string[];
+}
+
+export interface GrammarLesson {
+  title: string;
+  concept: string;
+  analogy: string;
+  structureBreakdown: {
+    sentence: string;
+    sentenceType: string;
+    analysis: {
+      subject: string;
+      verb: string;
+      object: string;
+      others: string;
+    };
+    explanation: string;
+    collocationTip?: string;
+  }[];
+  rules: {
+    title: string;
+    content: string;
+  }[];
+}
+
 export interface GrammarQuiz {
   question: string;
   options: string[];
   correctAnswer: number;
-  explanation: string;
   detailedAnalysis: {
     logic: string;
     structure: string;
@@ -105,8 +111,16 @@ export interface GrammarQuiz {
   };
 }
 
-export interface ReadingProgress { category: string; currentLevel: number; difficulty: 'beginner' | 'intermediate' | 'advanced'; completedArticles: string[]; }
+export interface WritingAnalysis {
+  score: number;
+  feedback: string;
+  corrections: {
+    original: string;
+    suggested: string;
+    reason: string;
+  }[];
+}
+
 export interface UserNote { id: string; text: string; context: string; timestamp: number; module: LearningModule; tag?: 'vocabulary' | 'note'; reviewCount: number; lastReviewTimestamp?: number; }
 export interface UserLogEntry { timestamp: number; module: LearningModule; action: 'learn' | 'mistake' | 'unknown_word' | 'complete' | 'note_added' | 'ai_chat'; detail: any; }
-export interface WritingAnalysis { score: number; feedback: string; corrections: { original: string; suggested: string; reason: string }[]; }
 export interface ReadingArticle { title: string; chineseTitle: string; content: string; curriculumGoal: string; keyWords: { word: string; meaning: string; }[]; questions: { question: string; options: string[]; answer: number; explanation: string; }[]; }
