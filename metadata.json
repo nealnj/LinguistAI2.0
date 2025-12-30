@@ -1,7 +1,12 @@
 {
   "name": "LinguistAI - 全能英语学习导师",
-  "description": "一个系统化的AI驱动英语学习平台，涵盖词汇、语法、口语、听力、阅读、写作，并针对雅思和剑桥考级提供深度定制学习方案。",
+  "description": "一个系统化的AI驱动英语学习平台，涵盖词汇、语法、口语、听力、阅读、写作。",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "camera"
+  ],
+  "capabilities": [
+    "touch",
+    "offline"
   ]
 }

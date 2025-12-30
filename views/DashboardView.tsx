@@ -211,34 +211,42 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                     ))}
                   </div>
                ) : (
-                roadmap.map((step, i) => (
-                  <div key={i} className={`group relative z-10 p-8 rounded-[2rem] border transition-all flex items-center gap-8 ${
-                    step.status === 'completed' ? 'bg-slate-50 border-slate-100' : 
-                    step.status === 'current' ? 'border-indigo-200 bg-white shadow-xl scale-[1.02]' : 
-                    'opacity-40 border-slate-50 bg-white grayscale'
-                  }`}>
-                     <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl shadow-lg transition-transform group-hover:scale-105 ${
-                       step.status === 'completed' ? 'bg-emerald-500 text-white' : 
-                       step.status === 'current' ? 'bg-indigo-600 text-white' : 
-                       'bg-slate-100 text-slate-300'
-                     }`}>
-                        {step.status === 'completed' ? <CheckCircle2 size={24} /> : i + 1}
-                     </div>
-                     <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
-                          <h4 className="font-black text-slate-800 text-xl tracking-tight">{step.stage}</h4>
-                          {step.status === 'current' && <span className="px-3 py-0.5 bg-indigo-600 text-white text-[8px] font-black rounded-full animate-pulse">进行中</span>}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                           {step.focus?.map((f, j) => (
-                             <span key={j} className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{f}</span>
-                           ))}
-                        </div>
-                     </div>
-                     {step.status === 'locked' && <Lock size={20} className="text-slate-200" />}
-                     {step.status === 'current' && <button onClick={() => onNavigate(LearningModule.READING)} className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all"><ArrowRight size={20} /></button>}
-                  </div>
-                ))
+                roadmap.map((step, i) => {
+                  const focusPoints = Array.isArray(step.focus) 
+                    ? step.focus 
+                    : typeof step.focus === 'string' 
+                      ? (step.focus as string).split(',').map(s => s.trim()) 
+                      : [];
+                      
+                  return (
+                    <div key={i} className={`group relative z-10 p-8 rounded-[2rem] border transition-all flex items-center gap-8 ${
+                      step.status === 'completed' ? 'bg-slate-50 border-slate-100' : 
+                      step.status === 'current' ? 'border-indigo-200 bg-white shadow-xl scale-[1.02]' : 
+                      'opacity-40 border-slate-50 bg-white grayscale'
+                    }`}>
+                       <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl shadow-lg transition-transform group-hover:scale-105 ${
+                         step.status === 'completed' ? 'bg-emerald-500 text-white' : 
+                         step.status === 'current' ? 'bg-indigo-600 text-white' : 
+                         'bg-slate-100 text-slate-300'
+                       }`}>
+                          {step.status === 'completed' ? <CheckCircle2 size={24} /> : i + 1}
+                       </div>
+                       <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <h4 className="font-black text-slate-800 text-xl tracking-tight">{step.stage}</h4>
+                            {step.status === 'current' && <span className="px-3 py-0.5 bg-indigo-600 text-white text-[8px] font-black rounded-full animate-pulse">进行中</span>}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                             {focusPoints.map((f, j) => (
+                               <span key={j} className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{f}</span>
+                             ))}
+                          </div>
+                       </div>
+                       {step.status === 'locked' && <Lock size={20} className="text-slate-200" />}
+                       {step.status === 'current' && <button onClick={() => onNavigate(LearningModule.READING)} className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all"><ArrowRight size={20} /></button>}
+                    </div>
+                  );
+                })
                )}
             </div>
           </section>

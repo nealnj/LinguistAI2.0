@@ -45,6 +45,7 @@ const safeParse = (jsonStr: string, fallback: any) => {
 
 /**
  * 自愈核心：生成修复策略
+ * 管理员点击“分析反馈”时调用
  */
 export const generateHealingStrategy = async (feedbacks: any[]) => {
   return aiCall(async (ai) => {
@@ -52,14 +53,16 @@ export const generateHealingStrategy = async (feedbacks: any[]) => {
     Review these user issues for LinguistAI:
     ${JSON.stringify(feedbacks)}
     
-    TASK: Identify the ROOT CAUSE and provide a "PROMPT FIX" to prevent this.
+    TASK: Identify the ROOT CAUSE and provide a "SYSTEM INSTRUCTION PATCH" to prevent this.
+    For example: If users say "IPA is incorrect", the patch is "Ensure IPA symbols are strictly British Standard".
+    
     Return JSON format:
     {
       "rules": [
         {
           "description": "Short explanation of the fix",
           "targetModule": "vocabulary|grammar|reading|all",
-          "systemInstructionAddon": "A direct instruction to add to system prompts (e.g., 'Always use British IPA symbols')."
+          "systemInstructionAddon": "A direct instruction to add to system prompts."
         }
       ]
     }`;
@@ -69,7 +72,7 @@ export const generateHealingStrategy = async (feedbacks: any[]) => {
 };
 
 /**
- * v1.1 注入补丁后的生成器
+ * 带有自愈注入的单词生成器
  */
 export const generateVocabulary = async (level: string) => {
   const healingRules = logger.getAppliedRules(LearningModule.VOCABULARY);
@@ -125,8 +128,7 @@ export const generateVocabulary = async (level: string) => {
                 }
               },
               roots: { type: Type.STRING },
-              affixes: { type: Type.STRING },
-              memoryTip: { type: Type.STRING }
+              affixes: { type: Type.STRING }
             },
             required: ['word', 'phonetic', 'translation', 'pos', 'example', 'exampleStructure', 'mnemonic', 'forms', 'relatedWords', 'roots', 'affixes']
           }
@@ -169,51 +171,15 @@ export const generateGrammarLesson = async (topic: string) => {
   });
 };
 
-export const generateGrammarQuiz = async (topic: string) => {
-  const healingRules = logger.getAppliedRules(LearningModule.GRAMMAR);
+export const generateReadingArticle = async (category: string, progress: any) => {
+  const healingRules = logger.getAppliedRules(LearningModule.READING);
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: PRO_TXT,
-      contents: `Generate 3 grammar quiz for: "${topic}". ${healingRules}`,
-      config: { 
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING } }, correctAnswer: { type: Type.NUMBER }, detailedAnalysis: { type: Type.OBJECT, properties: { logic: { type: Type.STRING }, structure: { type: Type.STRING }, collocations: { type: Type.STRING } }, required: ['logic', 'structure', 'collocations'] } },
-            required: ['question', 'options', 'correctAnswer', 'detailedAnalysis']
-          }
-        }
-      }
-    });
-    return safeParse(response.text, []);
-  });
-};
-
-export const generateGlobalInsights = async (country: string) => {
-  const fallback = { market: {}, regions: [], demand: [], news: [], visa: [], evolution: [], sources: [] };
-  return aiCall(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: FLASH_TXT,
-      contents: `ACT AS AN ADVANCED CAREER DATA ANALYST. Analyze TODAY'S market for "${country}".`,
+      contents: `Latest professional news article in ${category} for Level ${progress.currentLevel}. Bilingual. ${healingRules}`,
       config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
     });
-    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    return { ...safeParse(response.text, fallback), sources };
-  });
-};
-
-export const generateVisionTrends = async () => {
-  return aiCall(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: FLASH_TXT,
-      contents: `Get real-time global news, music, movie trends (2024-2025).`,
-      config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
-    });
-    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const data = safeParse(response.text, { news: [], songs: [], movies: [] });
-    return { ...data, sources };
+    return safeParse(response.text, { title: "", chineseTitle: "", content: "", keyWords: [], questions: [] });
   });
 };
 
@@ -259,8 +225,25 @@ export const generateLearningPlan = async (goal: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Strategic learning roadmap for: ${goal}. JSON list of steps.`,
-      config: { responseMimeType: "application/json" }
+      contents: `Strategic learning roadmap for: ${goal}.`,
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              stage: { type: Type.STRING, description: 'Title of the learning stage' },
+              focus: { 
+                type: Type.ARRAY, 
+                items: { type: Type.STRING },
+                description: 'Key focus points for this stage'
+              }
+            },
+            required: ['stage', 'focus']
+          }
+        }
+      }
     });
     return safeParse(response.text, []);
   });
@@ -292,18 +275,6 @@ export const getExamTips = async (type: string) => {
   });
 };
 
-export const generateReadingArticle = async (category: string, progress: any) => {
-  const healingRules = logger.getAppliedRules(LearningModule.READING);
-  return aiCall(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: PRO_TXT,
-      contents: `Latest professional news article in ${category} for Level ${progress.currentLevel}. Bilingual. ${healingRules}`,
-      config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
-    });
-    return safeParse(response.text, { title: "", chineseTitle: "", content: "", keyWords: [], questions: [] });
-  });
-};
-
 export const analyzeVisionItem = async (topic: string, type: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -322,5 +293,53 @@ export const generatePersonalizedResume = async (progress: any, country: string,
       contents: `ACT AS AN INTERNATIONAL CAREER CONSULTANT. Generate a professional English resume for: ${specialization}, Target: ${country}. Use learning data: ${JSON.stringify(progress)}`,
     });
     return response.text || "";
+  });
+};
+
+export const generateVisionTrends = async () => {
+  return aiCall(async (ai) => {
+    const response = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Get real-time global news, music, movie trends (2024-2025).`,
+      config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
+    });
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const data = safeParse(response.text, { news: [], songs: [], movies: [] });
+    return { ...data, sources };
+  });
+};
+
+export const generateGrammarQuiz = async (topic: string) => {
+  const healingRules = logger.getAppliedRules(LearningModule.GRAMMAR);
+  return aiCall(async (ai) => {
+    const response = await ai.models.generateContent({
+      model: PRO_TXT,
+      contents: `Generate 3 grammar quiz for: "${topic}". ${healingRules}`,
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING } }, correctAnswer: { type: Type.NUMBER }, detailedAnalysis: { type: Type.OBJECT, properties: { logic: { type: Type.STRING }, structure: { type: Type.STRING }, collocations: { type: Type.STRING } }, required: ['logic', 'structure', 'collocations'] } },
+            required: ['question', 'options', 'correctAnswer', 'detailedAnalysis']
+          }
+        }
+      }
+    });
+    return safeParse(response.text, []);
+  });
+};
+
+export const generateGlobalInsights = async (country: string) => {
+  const fallback = { market: {}, regions: [], demand: [], news: [], visa: [], evolution: [], sources: [] };
+  return aiCall(async (ai) => {
+    const response = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `ACT AS AN ADVANCED CAREER DATA ANALYST. Analyze TODAY'S market for "${country}".`,
+      config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
+    });
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    return { ...safeParse(response.text, fallback), sources };
   });
 };
