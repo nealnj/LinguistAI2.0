@@ -114,7 +114,7 @@ const App: React.FC = () => {
 
   if (isAdmin) menuItems.push({ id: LearningModule.ADMIN, label: '系统管理', icon: <Settings size={20} /> });
 
-  // 渲染健壮的头像标识
+  // 渲染健壮的头像标识（UI Initial Avatar）
   const renderAvatar = (phone: string, size: string = 'w-8 h-8') => {
     const colors = ['bg-indigo-500', 'bg-emerald-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-500', 'bg-slate-500'];
     const lastDigit = parseInt(phone.slice(-1)) || 0;
@@ -149,7 +149,8 @@ const App: React.FC = () => {
           {isSidebarOpen && (
             <div className="px-3 py-4 bg-slate-50 rounded-2xl mb-2">
                <button onClick={() => setShowPayment(true)} className="flex items-center gap-3 mb-3 w-full text-left hover:bg-white p-2 rounded-xl transition-all group border border-transparent hover:border-slate-100 hover:shadow-sm">
-                 <div className="relative">
+                 <div className="relative shrink-0">
+                   {/* 核心修复：移除 img 标签，改用 CSS 头像 */}
                    {renderAvatar(currentUser.phone)}
                    {usageStats.isPro && <div className="absolute -bottom-0.5 -right-0.5 bg-indigo-500 w-2.5 h-2.5 rounded-full border-2 border-white flex items-center justify-center"><Crown size={6} className="text-white" /></div>}
                  </div>
@@ -157,7 +158,7 @@ const App: React.FC = () => {
                    <div className="text-[10px] font-black text-slate-800 truncate">{currentUser.phone}</div>
                    <div className={`text-[8px] font-bold uppercase tracking-widest ${usageStats.isPro ? 'text-indigo-600' : 'text-amber-600'}`}>{usageStats.isPro ? 'Pro Member' : usageStats.isPassActive ? '15m Pass Active' : 'Free Trial'}</div>
                  </div>
-                 <ChevronRight size={12} className="text-slate-300" />
+                 <ChevronRight size={12} className="text-slate-300 shrink-0" />
                </button>
                <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest"><LogOut size={14} /> 退出登录</button>
             </div>

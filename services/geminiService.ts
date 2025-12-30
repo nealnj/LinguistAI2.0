@@ -17,21 +17,16 @@ async function aiCall<T>(fn: (ai: GoogleGenAI) => Promise<T>, retries = 2): Prom
     return await fn(ai);
   } catch (error: any) {
     const msg = error.message || "";
-    // 自动重试逻辑 (处理 429 限流)
     if (msg.includes('429') && retries > 0) {
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise(r => setTimeout(r, 2000));
       return aiCall(fn, retries - 1);
     }
     throw error;
   }
 }
 
-/**
- * 结构化数据保护：确保返回的对象永远包含基础数组
- */
 const safeParse = (jsonStr: string, fallback: any) => {
   try {
-    // Remove potential markdown code block markers
     const cleaned = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
     const data = JSON.parse(cleaned);
     return Array.isArray(fallback) ? (Array.isArray(data) ? data : fallback) : { ...fallback, ...data };
@@ -40,7 +35,9 @@ const safeParse = (jsonStr: string, fallback: any) => {
   }
 };
 
-// Fix: Implement generateGlobalInsights with Google Search grounding
+/**
+ * 全球职业洞察：利用 Google Search 实时爬取最新市场数据
+ */
 export const generateGlobalInsights = async (country: string) => {
   const fallback = {
     market: { salary: "N/A", pct: "0%", history: [] },
@@ -51,31 +48,56 @@ export const generateGlobalInsights = async (country: string) => {
   };
 
   return aiCall(async (ai) => {
-    try {
-      const response = await ai.models.generateContent({
-        model: PRO_TXT,
-        contents: `Latest career insights for ${country} in 2024/2025. Include salary trends, high demand roles, news, and visa updates. Return JSON.`,
-        config: { 
-          responseMimeType: "application/json",
-          tools: [{ googleSearch: {} }] 
-        }
-      });
-      // Always extract search sources for grounding as per guidelines
-      const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-      const parsed = safeParse(response.text, fallback);
-      return { ...parsed, sources };
-    } catch {
-      const res = await ai.models.generateContent({
-        model: FLASH_TXT,
-        contents: `Simulate high-quality career insights for ${country} 2024. Return JSON matching: {market: {salary, pct, history:[]}, demand: [], news: [], visa: []}`,
-        config: { responseMimeType: "application/json" }
-      });
-      return safeParse(res.text, fallback);
-    }
+    const response = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `ACT AS A CRAWLER. Search and extract the latest 2024-2025 career market data for ${country}. Focus on actual reported salaries and trending news. Return JSON: {market: {salary, pct, history:[{year, value}]}, demand: [{title, growth}], news: [{title, summary, date}], visa: [{title, description}]}`,
+      config: { 
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }] 
+      }
+    });
+    
+    // 提取搜索来源（爬虫证据）
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const parsed = safeParse(response.text, fallback);
+    return { ...parsed, sources };
   });
 };
 
-// Fix: Added missing learning plan generation
+/**
+ * 寰宇视野趋势：使用 Search 实时爬取新闻、音乐、电影趋势
+ */
+export const generateVisionTrends = async () => {
+  const fallback = { news: [], songs: [], movies: [], sources: [] };
+  return aiCall(async (ai) => {
+    const response = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `ACT AS A DATA CRAWLER. Search the absolute top 3 trending global items TODAY for: 1. Latest World News, 2. Billboard/Music Chart Hits, 3. New Cinema/Movie Releases. Format the findings into educational segments. Return JSON: {news: [{t_en, t_cn, s_en, s_cn, keywords:[]}], songs: [{name_en, name_cn, artist, lyrics_clip_en, lyrics_clip_cn}], movies: [{title_en, title_cn, accent, desc_en, desc_cn}]}`,
+      config: { 
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }]
+      }
+    });
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const parsed = safeParse(response.text, fallback);
+    return { ...parsed, sources };
+  });
+};
+
+export const analyzeVisionItem = async (topic: string, type: string) => {
+  return aiCall(async (ai) => {
+    const response = await ai.models.generateContent({
+      model: FLASH_TXT,
+      contents: `Search and deeply analyze ${type}: "${topic}". Create an educational long article in English (article_en) and Chinese (article_cn). Also extract vocabulary and structures. Return JSON: {article_en, article_cn, vocab: [{w,t,e}], structures: [{s,logic}], collocations: [{phrase,meaning,usage}], expressions: [{exp,meaning,context}]}`,
+      config: { 
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }]
+      }
+    });
+    return safeParse(response.text, { article_en: "", article_cn: "", vocab: [], structures: [], collocations: [], expressions: [] });
+  });
+};
+
 export const generateLearningPlan = async (goal: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -87,7 +109,6 @@ export const generateLearningPlan = async (goal: string) => {
   });
 };
 
-// Fix: Added missing review quiz generation based on user notes
 export const generateReviewQuiz = async (notes: any[]) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -99,19 +120,17 @@ export const generateReviewQuiz = async (notes: any[]) => {
   });
 };
 
-// Fix: Added missing vocabulary generation
 export const generateVocabulary = async (level: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Generate 5 academic vocabulary words for ${level} level. Return JSON array of VocabularyWord objects (word, phonetic, translation, pos, example, exampleTranslation, exampleStructure: {sentenceType, analysis: {subject, verb, object, others}, explanation}, mnemonic, visualPrompt, forms: [], relatedWords: {synonym: []}).`,
+      contents: `Generate 5 academic vocabulary words for ${level} level. Return JSON array of VocabularyWord objects.`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, []);
   });
 };
 
-// Fix: Added missing Text-to-Speech audio generation
 export const getSpeechAudio = async (text: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -128,7 +147,6 @@ export const getSpeechAudio = async (text: string) => {
   });
 };
 
-// Fix: Added missing image generation for vocabulary visuals
 export const generateImage = async (prompt: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -136,116 +154,78 @@ export const generateImage = async (prompt: string) => {
       contents: { parts: [{ text: `A clear, educational, high-quality visual representation of: ${prompt}. Minimalistic, white background.` }] },
       config: { imageConfig: { aspectRatio: "1:1" } }
     });
-    
     for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
+      if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
     return null;
   });
 };
 
-// Fix: Added missing writing analysis logic
 export const analyzeWriting = async (text: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: PRO_TXT,
-      contents: `Analyze this English writing for IELTS standards: "${text}". Provide score (0-90), feedback, and specific corrections. Return JSON {score, feedback, corrections: [{original, suggested, reason}]}.`,
+      model: FLASH_TXT,
+      contents: `Analyze this English writing for IELTS standards: "${text}". Return JSON {score, feedback, corrections: [{original, suggested, reason}]}.`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, { score: 0, feedback: "Error analyzing text.", corrections: [] });
   });
 };
 
-// Fix: Added missing exam tips generation
 export const getExamTips = async (type: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Provide 5 practical, advanced tips for the ${type} exam. Focus on high-scoring strategies.`,
+      contents: `Provide 5 practical, advanced tips for the ${type} exam.`,
     });
-    return response.text || "No tips available at the moment.";
+    return response.text || "No tips available.";
   });
 };
 
-// Fix: Added missing grammar lesson generation
 export const generateGrammarLesson = async (topic: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Create a deep-dive grammar lesson for "${topic}". Include concept, intuitive analogy, structureBreakdown: [{sentence, sentenceType, analysis: {subject, verb, object, others}, explanation, collocationTip}], and 3 key rules. Return JSON.`,
+      contents: `Create a deep-dive grammar lesson for "${topic}". Return JSON.`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, { title: topic, concept: "", analogy: "", structureBreakdown: [], rules: [] });
   });
 };
 
-// Fix: Added missing grammar quiz generation
 export const generateGrammarQuiz = async (topic: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Create 3 challenging grammar quiz questions for "${topic}". Return JSON array of {question, options:[], correctAnswer: index, detailedAnalysis: {logic, structure, collocations}}.`,
+      contents: `Create 3 challenging grammar quiz questions for "${topic}". Return JSON array.`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, []);
   });
 };
 
-// Fix: Added missing reading article generation
 export const generateReadingArticle = async (category: string, progress: any) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Generate a professional reading article about ${category} for someone at Level ${progress.currentLevel}. Include title, chineseTitle, content (approx 200 words), curriculumGoal, 3 keyWords: {word, meaning}, and 3 questions: {question, options, answer, explanation}. Return JSON.`,
+      contents: `Generate a reading article about ${category} for Level ${progress.currentLevel}. Return JSON.`,
       config: { responseMimeType: "application/json" }
     });
     return safeParse(response.text, { title: "Error", content: "", questions: [] });
   });
 };
 
-// Fix: Added missing mentor advice generation
 export const generateMentorAdvice = async (module: string, userMsg?: string) => {
   return aiCall(async (ai) => {
     const prompt = userMsg 
-      ? `As an AI English Mentor for the ${module} module, answer the student: "${userMsg}". Be encouraging and professional.`
-      : `Provide a quick piece of advice and one actionable tip for a student currently learning in the ${module} module. Return JSON {advice, actionableTip}.`;
-    
+      ? `As an AI English Mentor for ${module}, answer: "${userMsg}".`
+      : `Provide advice and a tip for ${module}. Return JSON {advice, actionableTip}.`;
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
       contents: prompt,
       config: userMsg ? {} : { responseMimeType: "application/json" }
     });
-    
     if (userMsg) return { advice: response.text || "I'm here to help!", actionableTip: "" };
     return safeParse(response.text, { advice: "Keep going!", actionableTip: "Practice makes perfect." });
-  });
-};
-
-// Fix: Added missing global vision trends generation
-export const generateVisionTrends = async () => {
-  return aiCall(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: PRO_TXT,
-      contents: `Scan global news, music charts, and film trends for today. Provide 3 trending items each for news (t_en, t_cn, s_en, s_cn, keywords: []), songs (name_en, name_cn, artist, lyrics_clip_en, lyrics_clip_cn), and movies (title_en, title_cn, accent, desc_en, desc_cn). Return JSON.`,
-      config: { 
-        responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }]
-      }
-    });
-    return safeParse(response.text, { news: [], songs: [], movies: [] });
-  });
-};
-
-// Fix: Added missing vision item analysis
-export const analyzeVisionItem = async (topic: string, type: string) => {
-  return aiCall(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: PRO_TXT,
-      contents: `Deeply analyze the following ${type}: "${topic}". Create a high-quality educational article_en and article_cn. Extract 5 vocab: {w, t, e}, 2 structures: {s, logic}, 3 collocations: {phrase, meaning, usage}, and 3 expressions: {exp, meaning, context}. Return JSON.`,
-      config: { responseMimeType: "application/json" }
-    });
-    return safeParse(response.text, { article_en: "", article_cn: "", vocab: [], structures: [], collocations: [], expressions: [] });
   });
 };
