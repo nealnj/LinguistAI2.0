@@ -114,6 +114,19 @@ const App: React.FC = () => {
 
   if (isAdmin) menuItems.push({ id: LearningModule.ADMIN, label: '系统管理', icon: <Settings size={20} /> });
 
+  // 渲染健壮的头像标识
+  const renderAvatar = (phone: string, size: string = 'w-8 h-8') => {
+    const colors = ['bg-indigo-500', 'bg-emerald-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-500', 'bg-slate-500'];
+    const lastDigit = parseInt(phone.slice(-1)) || 0;
+    const colorClass = colors[lastDigit % colors.length];
+    
+    return (
+      <div className={`${size} rounded-full flex items-center justify-center text-white font-black text-xs shadow-sm ${colorClass} border-2 border-white ring-1 ring-slate-100`}>
+        {phone.charAt(0)}
+      </div>
+    );
+  };
+
   if (!currentUser) return <LoginView onLoginSuccess={handleLoginSuccess} />;
 
   return (
@@ -137,7 +150,7 @@ const App: React.FC = () => {
             <div className="px-3 py-4 bg-slate-50 rounded-2xl mb-2">
                <button onClick={() => setShowPayment(true)} className="flex items-center gap-3 mb-3 w-full text-left hover:bg-white p-2 rounded-xl transition-all group border border-transparent hover:border-slate-100 hover:shadow-sm">
                  <div className="relative">
-                   <img src={`https://picsum.photos/seed/${currentUser.phone}/40/40`} className="w-8 h-8 rounded-full shadow-sm" alt="User" />
+                   {renderAvatar(currentUser.phone)}
                    {usageStats.isPro && <div className="absolute -bottom-0.5 -right-0.5 bg-indigo-500 w-2.5 h-2.5 rounded-full border-2 border-white flex items-center justify-center"><Crown size={6} className="text-white" /></div>}
                  </div>
                  <div className="overflow-hidden flex-1">

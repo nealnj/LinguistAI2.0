@@ -17,7 +17,8 @@ import {
   TrendingUp,
   Brain,
   Filter,
-  ShieldCheck
+  ShieldCheck,
+  Crown
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
@@ -51,6 +52,18 @@ const AdminView: React.FC = () => {
       const updated = logger.getAllUsers().find(u => u.phone === selectedUser.phone);
       setSelectedUser(updated || null);
     }
+  };
+
+  const renderAvatar = (phone: string, size: string = 'w-8 h-8', textSize: string = 'text-xs') => {
+    const colors = ['bg-indigo-500', 'bg-emerald-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-500', 'bg-slate-500'];
+    const lastDigit = parseInt(phone.slice(-1)) || 0;
+    const colorClass = colors[lastDigit % colors.length];
+    
+    return (
+      <div className={`${size} rounded-full flex items-center justify-center text-white font-black ${textSize} shadow-sm ${colorClass} border-2 border-white ring-1 ring-slate-100`}>
+        {phone.charAt(0)}
+      </div>
+    );
   };
 
   const handleTogglePro = (user: User) => {
@@ -169,7 +182,7 @@ const AdminView: React.FC = () => {
                       <tr key={user.phone} className={`group hover:bg-slate-50/50 transition-all ${selectedUser?.phone === user.phone ? 'bg-indigo-50/30' : ''}`}>
                         <td className="py-6">
                           <div className="flex items-center gap-3">
-                            <img src={`https://picsum.photos/seed/${user.phone}/40/40`} className="w-8 h-8 rounded-full" alt="" />
+                            {renderAvatar(user.phone)}
                             <span className="font-black text-slate-800">{user.phone}</span>
                             {isAdmin && <ShieldCheck size={14} className="text-indigo-600" />}
                           </div>
@@ -213,7 +226,7 @@ const AdminView: React.FC = () => {
             {selectedUser ? (
               <>
                 <div className="flex items-center gap-6">
-                  <img src={`https://picsum.photos/seed/${selectedUser.phone}/60/60`} className="w-16 h-16 rounded-[2rem] shadow-lg" alt="" />
+                  {renderAvatar(selectedUser.phone, 'w-16 h-16', 'text-xl')}
                   <div>
                     <h4 className="text-2xl font-black text-slate-800 tracking-tighter">{selectedUser.phone}</h4>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">用户详情与控制</p>
@@ -288,10 +301,5 @@ export default AdminView;
 const Loader2 = ({ size, className }: { size: number, className?: string }) => (
   <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-  </svg>
-);
-const Crown = ({ size, className }: { size: number, className?: string }) => (
-  <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14" />
   </svg>
 );
