@@ -46,10 +46,15 @@ const GlobalCareerView: React.FC = () => {
     setError(null);
     try {
       const data = await generateGlobalInsights(selectedCountry);
-      setInsights(data);
+      // 深度检查核心字段是否存在，防止白屏
+      if (data && data.market) {
+        setInsights(data);
+      } else {
+        throw new Error('INCOMPLETE_DATA');
+      }
     } catch (e: any) {
       console.error("Fetch Error:", e);
-      setError('数据获取失败。可能是网络波动或服务暂时不可用，请稍后重试。');
+      setError('数据获取失败。可能是由于数据结构异常或 API 暂时受限，请尝试切换国家。');
     } finally {
       setLoading(false);
     }
@@ -64,7 +69,6 @@ const GlobalCareerView: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-12 pb-20 animate-in fade-in duration-700">
-      {/* 顶部导航与国家选择 */}
       <div className="bg-slate-900 rounded-[3.5rem] p-10 md:p-12 text-white relative overflow-hidden shadow-2xl">
         <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-12">
           <div className="space-y-6 max-w-2xl text-center lg:text-left">
@@ -118,7 +122,7 @@ const GlobalCareerView: React.FC = () => {
             <RefreshCcw size={20} /> 点击重试
           </button>
         </div>
-      ) : insights && (
+      ) : insights && insights.market && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           <div className="lg:col-span-8 space-y-10">
             {/* 薪资趋势可视化 */}
@@ -129,37 +133,41 @@ const GlobalCareerView: React.FC = () => {
                     <DollarSign size={18} className="text-emerald-500" /> 2024-2025 薪资走势 SALARY TRENDS
                   </h4>
                   <p className="text-2xl font-black text-slate-900">
-                    典型年薪 Typical Salary: <span className="text-indigo-600">{insights.market.salary}</span>
+                    典型年薪 Typical Salary: <span className="text-indigo-600">{insights.market.salary || 'N/A'}</span>
                   </p>
                 </div>
                 <div className={`flex flex-col items-end gap-1 px-6 py-3 rounded-2xl font-black text-sm border-2 transition-colors ${isPositiveTrend ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
                   <div className="flex items-center gap-2">
                     {isPositiveTrend ? <TrendingUp size={20}/> : <TrendingDown size={20}/>}
-                    同期增长 {insights.market.pct}
+                    同期增长 {insights.market.pct || '0%'}
                   </div>
                   <span className="text-[9px] opacity-60 uppercase tracking-widest">Year-on-Year Growth</span>
                 </div>
               </div>
 
-              {/* 趋势图 */}
+              {/* 趋势图 - 防御性修复 Math.max */}
               <div className="flex items-end justify-between h-56 px-4 border-b border-slate-100 pb-4 gap-3">
-                 {insights.market.history?.map((h: any, i: number) => (
-                   <div key={i} className="flex-1 flex flex-col items-center gap-3 group">
-                      <div className="w-full bg-slate-50 rounded-t-2xl group-hover:bg-indigo-600 transition-all relative" style={{ height: `${(h.v / (Math.max(...insights.market.history.map((x:any)=>x.v)) || 100)) * 100}%` }}>
-                         <div className="absolute -top-14 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[11px] px-4 py-2 rounded-2xl font-black whitespace-nowrap shadow-2xl z-20">
-                           ${h.v}k
-                         </div>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <span className="text-[11px] font-black text-slate-800">{h.m_cn}</span>
-                        <span className="text-[9px] font-bold text-slate-300 uppercase">{h.m_en}</span>
-                      </div>
-                   </div>
-                 ))}
+                 {(insights.market.history || []).map((h: any, i: number) => {
+                   const maxVal = Math.max(...(insights.market.history?.map((x: any) => x.v) || [100]));
+                   const barHeight = maxVal > 0 ? (h.v / maxVal) * 100 : 0;
+                   return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-3 group">
+                        <div className="w-full bg-slate-50 rounded-t-2xl group-hover:bg-indigo-600 transition-all relative" style={{ height: `${barHeight}%` }}>
+                          <div className="absolute -top-14 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[11px] px-4 py-2 rounded-2xl font-black whitespace-nowrap shadow-2xl z-20">
+                            ${h.v}k
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[11px] font-black text-slate-800">{h.m_cn}</span>
+                          <span className="text-[9px] font-bold text-slate-300 uppercase">{h.m_en}</span>
+                        </div>
+                    </div>
+                   );
+                 })}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
-                {insights.market.demand.map((d: any, i: number) => (
+                {(insights.market.demand || []).map((d: any, i: number) => (
                   <div key={i} className="p-8 bg-slate-50 rounded-[3rem] border border-slate-100 space-y-5 hover:bg-white hover:shadow-2xl transition-all group border-l-8 border-l-transparent hover:border-l-indigo-600">
                     <div className="flex justify-between items-start">
                       <div>
@@ -189,10 +197,10 @@ const GlobalCareerView: React.FC = () => {
                     </h4>
                   </div>
                   <div className="space-y-10">
-                    {insights.news?.map((n: any, i: number) => (
+                    {(insights.news || []).map((n: any, i: number) => (
                       <a 
                         key={i} 
-                        href={n.url} 
+                        href={n.url || '#'} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="block space-y-3 group hover:bg-slate-50 p-4 -mx-4 rounded-3xl transition-all"
@@ -221,7 +229,7 @@ const GlobalCareerView: React.FC = () => {
                     </h4>
                   </div>
                   <div className="space-y-6">
-                    {insights.visa?.map((v: any, i: number) => (
+                    {(insights.visa || []).map((v: any, i: number) => (
                       <div key={i} className="p-8 bg-white/5 rounded-[2.5rem] border border-white/10 space-y-6 hover:bg-white/10 transition-all">
                          <div className="flex justify-between items-start gap-4">
                            <div className="space-y-1">
@@ -248,10 +256,10 @@ const GlobalCareerView: React.FC = () => {
                  <Globe className="text-indigo-600" size={24} /> 信息源 Sources
                </h3>
                <div className="space-y-4">
-                 {insights.sources?.map((s: any, i: number) => (
+                 {(insights.sources || []).map((s: any, i: number) => (
                    <a 
                     key={i} 
-                    href={s.u} 
+                    href={s.u || '#'} 
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className="flex items-center justify-between p-6 bg-slate-50 rounded-[2rem] border border-slate-100 group hover:border-indigo-200 hover:bg-white transition-all shadow-sm"
