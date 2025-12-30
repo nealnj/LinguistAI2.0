@@ -8,6 +8,7 @@ const PRO_TXT = 'gemini-3-pro-preview';
 const IMAGE_GEN = 'gemini-2.5-flash-image';
 const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
 
+// Internal helper for retrying AI calls
 async function aiCall<T>(fn: (ai: GoogleGenAI) => Promise<T>, retries = 2): Promise<T> {
   const apiKey = process.env.API_KEY;
   const ai = new GoogleGenAI({ apiKey });
@@ -23,6 +24,7 @@ async function aiCall<T>(fn: (ai: GoogleGenAI) => Promise<T>, retries = 2): Prom
   }
 }
 
+// Utility to safely parse JSON from model responses
 const safeParse = (jsonStr: string, fallback: any) => {
   try {
     const cleaned = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -43,45 +45,13 @@ const safeParse = (jsonStr: string, fallback: any) => {
   }
 };
 
-/**
- * 自愈核心：生成修复策略
- * 管理员点击“分析反馈”时调用
- */
-export const generateHealingStrategy = async (feedbacks: any[]) => {
-  return aiCall(async (ai) => {
-    const prompt = `ACT AS A SYSTEMS ENGINEER.
-    Review these user issues for LinguistAI:
-    ${JSON.stringify(feedbacks)}
-    
-    TASK: Identify the ROOT CAUSE and provide a "SYSTEM INSTRUCTION PATCH" to prevent this.
-    For example: If users say "IPA is incorrect", the patch is "Ensure IPA symbols are strictly British Standard".
-    
-    Return JSON format:
-    {
-      "rules": [
-        {
-          "description": "Short explanation of the fix",
-          "targetModule": "vocabulary|grammar|reading|all",
-          "systemInstructionAddon": "A direct instruction to add to system prompts."
-        }
-      ]
-    }`;
-    const res = await ai.models.generateContent({ model: FLASH_TXT, contents: prompt, config: { responseMimeType: "application/json" } });
-    return safeParse(res.text, { rules: [] });
-  });
-};
-
-/**
- * 带有自愈注入的单词生成器
- */
+// Generates vocabulary words based on learner level
 export const generateVocabulary = async (level: string) => {
-  const healingRules = logger.getAppliedRules(LearningModule.VOCABULARY);
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: PRO_TXT,
       contents: `ACT AS AN ACADEMIC LINGUIST. Generate 5 core academic words for ${level}. 
-      ${healingRules} 
-      CRITICAL: Provide accurate IPA, morphological forms, and sentence structure analysis.`,
+      Provide accurate IPA, morphological forms, and sentence structure analysis.`,
       config: { 
         responseMimeType: "application/json",
         responseSchema: {
@@ -139,12 +109,12 @@ export const generateVocabulary = async (level: string) => {
   });
 };
 
+// Generates a grammar lesson for a specific topic
 export const generateGrammarLesson = async (topic: string) => {
-  const healingRules = logger.getAppliedRules(LearningModule.GRAMMAR);
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: PRO_TXT,
-      contents: `Create a grammar lesson for: "${topic}". ${healingRules}`,
+      contents: `Create a grammar lesson for: "${topic}".`,
       config: { 
         responseMimeType: "application/json",
         responseSchema: {
@@ -171,18 +141,19 @@ export const generateGrammarLesson = async (topic: string) => {
   });
 };
 
+// Generates a reading article with grounding
 export const generateReadingArticle = async (category: string, progress: any) => {
-  const healingRules = logger.getAppliedRules(LearningModule.READING);
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: PRO_TXT,
-      contents: `Latest professional news article in ${category} for Level ${progress.currentLevel}. Bilingual. ${healingRules}`,
+      contents: `Latest professional news article in ${category} for Level ${progress.currentLevel}. Bilingual.`,
       config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
     });
     return safeParse(response.text, { title: "", chineseTitle: "", content: "", keyWords: [], questions: [] });
   });
 };
 
+// Generates audio for text using TTS model
 export const getSpeechAudio = async (text: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -197,6 +168,7 @@ export const getSpeechAudio = async (text: string) => {
   });
 };
 
+// Generates an image using nano banana model
 export const generateImage = async (prompt: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -210,6 +182,7 @@ export const generateImage = async (prompt: string) => {
   });
 };
 
+// Analyzes writing standards against IELTS
 export const analyzeWriting = async (text: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -221,6 +194,7 @@ export const analyzeWriting = async (text: string) => {
   });
 };
 
+// Generates a strategic learning plan
 export const generateLearningPlan = async (goal: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -249,6 +223,7 @@ export const generateLearningPlan = async (goal: string) => {
   });
 };
 
+// Generates mentor advice or chat response
 export const generateMentorAdvice = async (module: string, userMsg?: string) => {
   return aiCall(async (ai) => {
     const prompt = userMsg ? `User asks: ${userMsg}` : `Expert advice for module: ${module}.`;
@@ -257,6 +232,7 @@ export const generateMentorAdvice = async (module: string, userMsg?: string) => 
   });
 };
 
+// Generates a quiz based on user notes
 export const generateReviewQuiz = async (notes: any[]) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -268,6 +244,7 @@ export const generateReviewQuiz = async (notes: any[]) => {
   });
 };
 
+// Gets exam strategies with basic text model
 export const getExamTips = async (type: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({ model: FLASH_TXT, contents: `Bilingual strategies for ${type} exam.` });
@@ -275,6 +252,7 @@ export const getExamTips = async (type: string) => {
   });
 };
 
+// Deeply analyzes a vision item with grounding
 export const analyzeVisionItem = async (topic: string, type: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -286,6 +264,7 @@ export const analyzeVisionItem = async (topic: string, type: string) => {
   });
 };
 
+// Generates a personalized English resume
 export const generatePersonalizedResume = async (progress: any, country: string, specialization: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -296,6 +275,7 @@ export const generatePersonalizedResume = async (progress: any, country: string,
   });
 };
 
+// Fetches global trends with grounding
 export const generateVisionTrends = async () => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
@@ -309,12 +289,12 @@ export const generateVisionTrends = async () => {
   });
 };
 
+// Generates specific grammar quizzes
 export const generateGrammarQuiz = async (topic: string) => {
-  const healingRules = logger.getAppliedRules(LearningModule.GRAMMAR);
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: PRO_TXT,
-      contents: `Generate 3 grammar quiz for: "${topic}". ${healingRules}`,
+      contents: `Generate 3 grammar quiz for: "${topic}".`,
       config: { 
         responseMimeType: "application/json",
         responseSchema: {
@@ -331,6 +311,7 @@ export const generateGrammarQuiz = async (topic: string) => {
   });
 };
 
+// Generates global market insights using grounding
 export const generateGlobalInsights = async (country: string) => {
   const fallback = { market: {}, regions: [], demand: [], news: [], visa: [], evolution: [], sources: [] };
   return aiCall(async (ai) => {
@@ -341,5 +322,39 @@ export const generateGlobalInsights = async (country: string) => {
     });
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     return { ...safeParse(response.text, fallback), sources };
+  });
+};
+
+// Analyzes user feedback and generates healing rules for Admin
+export const generateHealingStrategy = async (feedbacks: any[]) => {
+  return aiCall(async (ai) => {
+    const response = await ai.models.generateContent({
+      model: PRO_TXT,
+      contents: `ACT AS A SENIOR SYSTEM RELIABILITY ENGINEER. Analyze these user feedbacks: ${JSON.stringify(feedbacks)}. 
+      Generate a list of 'healing rules' (system instruction additions) to fix these issues and improve the AI tutor's behavior. 
+      Output JSON with a "rules" array.`,
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            rules: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  description: { type: Type.STRING },
+                  targetModule: { type: Type.STRING, description: 'Module name from LearningModule or "all"' },
+                  systemInstructionAddon: { type: Type.STRING }
+                },
+                required: ['description', 'targetModule', 'systemInstructionAddon']
+              }
+            }
+          },
+          required: ['rules']
+        }
+      }
+    });
+    return safeParse(response.text, { rules: [] });
   });
 };
