@@ -22,7 +22,8 @@ import {
   Stars,
   Layout,
   Layers,
-  Calendar
+  Calendar,
+  AlertTriangle
 } from 'lucide-react';
 
 function decode(base64: string) {
@@ -56,6 +57,7 @@ async function decodeAudioData(
 const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }> = ({ onNavigate }) => {
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'systematic' | 'memory' | 'info'>('systematic');
@@ -72,6 +74,7 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
 
   const fetchWords = async () => {
     setLoading(true);
+    setError(null);
     setAudioCache({});
     setIsFinished(false);
     setReviewMode(false);
@@ -83,10 +86,11 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
         setWords(newWords);
         setCurrentIndex(0);
       } else {
-        throw new Error("No data returned from AI");
+        setError("AI 导师未能生成词汇数据。这可能是由于网络波动，请重试。");
       }
-    } catch (error) { 
+    } catch (error: any) { 
       console.error(error); 
+      setError(error.message || "同步词源库失败，请检查网络连接。");
     } finally { 
       setLoading(false); 
     }
@@ -205,6 +209,28 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
           正在同步全球词源库...<br/>
           <span className="text-[10px] opacity-60">BUILDING ACADEMIC ONTOLOGY</span>
         </p>
+      </div>
+    );
+  }
+
+  if (error && words.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-8 animate-in fade-in duration-700">
+        <div className="bg-rose-50 p-12 rounded-[4rem] border border-rose-100 text-center space-y-6 max-w-md shadow-sm">
+          <div className="bg-white p-4 rounded-3xl w-fit mx-auto shadow-sm text-rose-500">
+            <AlertTriangle size={48} />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-2xl font-black text-slate-800 tracking-tighter">词源同步中断</h3>
+            <p className="text-slate-500 text-sm leading-relaxed">{error}</p>
+          </div>
+          <button 
+            onClick={fetchWords}
+            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 shadow-xl shadow-indigo-100"
+          >
+            <RefreshCw size={20} /> 点击重新同步
+          </button>
+        </div>
       </div>
     );
   }

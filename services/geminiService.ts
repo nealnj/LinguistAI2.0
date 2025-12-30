@@ -1,5 +1,7 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { logger } from "./logger";
+import { LearningModule } from "../types";
 
 const FLASH_TXT = 'gemini-3-flash-preview'; 
 const PRO_TXT = 'gemini-3-pro-preview';
@@ -21,19 +23,12 @@ async function aiCall<T>(fn: (ai: GoogleGenAI) => Promise<T>, retries = 2): Prom
   }
 }
 
-/**
- * 安全解析 AI 返回的 JSON，并确保数组字段不为 null
- */
 const safeParse = (jsonStr: string, fallback: any) => {
   try {
     const cleaned = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
     const data = JSON.parse(cleaned);
-    
     if (data && typeof data === 'object') {
-      // 如果 fallback 是数组，确保 data 也是数组
       if (Array.isArray(fallback) && !Array.isArray(data)) return fallback;
-      
-      // 深度补全：如果 fallback 是对象，确保 key 存在且类型正确
       if (!Array.isArray(fallback) && typeof fallback === 'object') {
         Object.keys(fallback).forEach(key => {
           if (Array.isArray(fallback[key]) && !Array.isArray(data[key])) {
@@ -42,21 +37,48 @@ const safeParse = (jsonStr: string, fallback: any) => {
         });
       }
     }
-    return data;
+    return data || fallback;
   } catch {
     return fallback;
   }
 };
 
 /**
- * v1.0 词汇生成引擎：强制包含音标与形态学数据
+ * 自愈核心：生成修复策略
+ */
+export const generateHealingStrategy = async (feedbacks: any[]) => {
+  return aiCall(async (ai) => {
+    const prompt = `ACT AS A SYSTEMS ENGINEER.
+    Review these user issues for LinguistAI:
+    ${JSON.stringify(feedbacks)}
+    
+    TASK: Identify the ROOT CAUSE and provide a "PROMPT FIX" to prevent this.
+    Return JSON format:
+    {
+      "rules": [
+        {
+          "description": "Short explanation of the fix",
+          "targetModule": "vocabulary|grammar|reading|all",
+          "systemInstructionAddon": "A direct instruction to add to system prompts (e.g., 'Always use British IPA symbols')."
+        }
+      ]
+    }`;
+    const res = await ai.models.generateContent({ model: FLASH_TXT, contents: prompt, config: { responseMimeType: "application/json" } });
+    return safeParse(res.text, { rules: [] });
+  });
+};
+
+/**
+ * v1.1 注入补丁后的生成器
  */
 export const generateVocabulary = async (level: string) => {
+  const healingRules = logger.getAppliedRules(LearningModule.VOCABULARY);
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: FLASH_TXT,
+      model: PRO_TXT,
       contents: `ACT AS AN ACADEMIC LINGUIST. Generate 5 core academic words for ${level}. 
-      CRITICAL: You MUST provide accurate IPA phonetics with slashes, detailed morphological forms, and root analysis.`,
+      ${healingRules} 
+      CRITICAL: Provide accurate IPA, morphological forms, and sentence structure analysis.`,
       config: { 
         responseMimeType: "application/json",
         responseSchema: {
@@ -65,7 +87,7 @@ export const generateVocabulary = async (level: string) => {
             type: Type.OBJECT,
             properties: {
               word: { type: Type.STRING },
-              phonetic: { type: Type.STRING, description: 'Accurate IPA phonetic with slashes' },
+              phonetic: { type: Type.STRING },
               translation: { type: Type.STRING },
               pos: { type: Type.STRING },
               example: { type: Type.STRING },
@@ -76,12 +98,7 @@ export const generateVocabulary = async (level: string) => {
                   sentenceType: { type: Type.STRING },
                   analysis: {
                     type: Type.OBJECT,
-                    properties: {
-                      subject: { type: Type.STRING },
-                      verb: { type: Type.STRING },
-                      object: { type: Type.STRING },
-                      others: { type: Type.STRING }
-                    },
+                    properties: { subject: { type: Type.STRING }, verb: { type: Type.STRING }, object: { type: Type.STRING }, others: { type: Type.STRING } },
                     required: ['subject', 'verb', 'object', 'others']
                   },
                   explanation: { type: Type.STRING }
@@ -94,14 +111,7 @@ export const generateVocabulary = async (level: string) => {
                 type: Type.ARRAY,
                 items: {
                   type: Type.OBJECT,
-                  properties: {
-                    form: { type: Type.STRING },
-                    pos: { type: Type.STRING },
-                    phonetic: { type: Type.STRING },
-                    meaning: { type: Type.STRING },
-                    example: { type: Type.STRING },
-                    derivationReason: { type: Type.STRING }
-                  },
+                  properties: { form: { type: Type.STRING }, pos: { type: Type.STRING }, phonetic: { type: Type.STRING }, meaning: { type: Type.STRING }, example: { type: Type.STRING }, derivationReason: { type: Type.STRING } },
                   required: ['form', 'pos', 'phonetic', 'meaning', 'example', 'derivationReason']
                 }
               },
@@ -110,21 +120,12 @@ export const generateVocabulary = async (level: string) => {
                 properties: {
                   synonym: {
                     type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        word: { type: Type.STRING },
-                        phonetic: { type: Type.STRING },
-                        meaning: { type: Type.STRING },
-                        example: { type: Type.STRING }
-                      }
-                    }
+                    items: { type: Type.OBJECT, properties: { word: { type: Type.STRING }, phonetic: { type: Type.STRING }, meaning: { type: Type.STRING }, example: { type: Type.STRING } } }
                   }
                 }
               },
               roots: { type: Type.STRING },
               affixes: { type: Type.STRING },
-              etymology: { type: Type.STRING },
               memoryTip: { type: Type.STRING }
             },
             required: ['word', 'phonetic', 'translation', 'pos', 'example', 'exampleStructure', 'mnemonic', 'forms', 'relatedWords', 'roots', 'affixes']
@@ -136,14 +137,12 @@ export const generateVocabulary = async (level: string) => {
   });
 };
 
-/**
- * v1.0 语法教学引擎：深度结构化解构
- */
 export const generateGrammarLesson = async (topic: string) => {
+  const healingRules = logger.getAppliedRules(LearningModule.GRAMMAR);
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: FLASH_TXT,
-      contents: `Create a professional, logic-driven grammar lesson for: "${topic}".`,
+      model: PRO_TXT,
+      contents: `Create a grammar lesson for: "${topic}". ${healingRules}`,
       config: { 
         responseMimeType: "application/json",
         responseSchema: {
@@ -156,35 +155,11 @@ export const generateGrammarLesson = async (topic: string) => {
               type: Type.ARRAY,
               items: {
                 type: Type.OBJECT,
-                properties: {
-                  sentence: { type: Type.STRING },
-                  sentenceType: { type: Type.STRING },
-                  analysis: {
-                    type: Type.OBJECT,
-                    properties: {
-                      subject: { type: Type.STRING },
-                      verb: { type: Type.STRING },
-                      object: { type: Type.STRING },
-                      others: { type: Type.STRING }
-                    }
-                  },
-                  explanation: { type: Type.STRING },
-                  collocationTip: { type: Type.STRING }
-                },
+                properties: { sentence: { type: Type.STRING }, sentenceType: { type: Type.STRING }, analysis: { type: Type.OBJECT, properties: { subject: { type: Type.STRING }, verb: { type: Type.STRING }, object: { type: Type.STRING }, others: { type: Type.STRING } } }, explanation: { type: Type.STRING }, collocationTip: { type: Type.STRING } },
                 required: ['sentence', 'sentenceType', 'analysis', 'explanation']
               }
             },
-            rules: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING },
-                  content: { type: Type.STRING }
-                },
-                required: ['title', 'content']
-              }
-            }
+            rules: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, content: { type: Type.STRING } }, required: ['title', 'content'] } }
           },
           required: ['title', 'concept', 'analogy', 'structureBreakdown', 'rules']
         }
@@ -195,30 +170,18 @@ export const generateGrammarLesson = async (topic: string) => {
 };
 
 export const generateGrammarQuiz = async (topic: string) => {
+  const healingRules = logger.getAppliedRules(LearningModule.GRAMMAR);
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: FLASH_TXT,
-      contents: `Generate 3 logical grammar quiz questions for "${topic}".`,
+      model: PRO_TXT,
+      contents: `Generate 3 grammar quiz for: "${topic}". ${healingRules}`,
       config: { 
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
           items: {
             type: Type.OBJECT,
-            properties: {
-              question: { type: Type.STRING },
-              options: { type: Type.ARRAY, items: { type: Type.STRING } },
-              correctAnswer: { type: Type.NUMBER },
-              detailedAnalysis: {
-                type: Type.OBJECT,
-                properties: {
-                  logic: { type: Type.STRING },
-                  structure: { type: Type.STRING },
-                  collocations: { type: Type.STRING }
-                },
-                required: ['logic', 'structure', 'collocations']
-              }
-            },
+            properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING } }, correctAnswer: { type: Type.NUMBER }, detailedAnalysis: { type: Type.OBJECT, properties: { logic: { type: Type.STRING }, structure: { type: Type.STRING }, collocations: { type: Type.STRING } }, required: ['logic', 'structure', 'collocations'] } },
             required: ['question', 'options', 'correctAnswer', 'detailedAnalysis']
           }
         }
@@ -234,10 +197,7 @@ export const generateGlobalInsights = async (country: string) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
       contents: `ACT AS AN ADVANCED CAREER DATA ANALYST. Analyze TODAY'S market for "${country}".`,
-      config: { 
-        responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }] 
-      }
+      config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
     });
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     return { ...safeParse(response.text, fallback), sources };
@@ -249,10 +209,7 @@ export const generateVisionTrends = async () => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
       contents: `Get real-time global news, music, movie trends (2024-2025).`,
-      config: { 
-        responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }]
-      }
+      config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
     });
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const data = safeParse(response.text, { news: [], songs: [], movies: [] });
@@ -290,7 +247,7 @@ export const generateImage = async (prompt: string) => {
 export const analyzeWriting = async (text: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: FLASH_TXT,
+      model: PRO_TXT,
       contents: `Analyze writing standard against IELTS. JSON {score, feedback, corrections: [{original, suggested, reason}]}`,
       config: { responseMimeType: "application/json" }
     });
@@ -312,20 +269,15 @@ export const generateLearningPlan = async (goal: string) => {
 export const generateMentorAdvice = async (module: string, userMsg?: string) => {
   return aiCall(async (ai) => {
     const prompt = userMsg ? `User asks: ${userMsg}` : `Expert advice for module: ${module}.`;
-    const response = await ai.models.generateContent({
-      model: FLASH_TXT,
-      contents: prompt,
-      config: userMsg ? {} : { responseMimeType: "application/json" }
-    });
-    if (userMsg) return { advice: response.text || "", actionableTip: "" };
-    return safeParse(response.text, { advice: "", actionableTip: "" });
+    const response = await ai.models.generateContent({ model: FLASH_TXT, contents: prompt });
+    return { advice: response.text || "", actionableTip: "" };
   });
 };
 
 export const generateReviewQuiz = async (notes: any[]) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: FLASH_TXT,
+      model: PRO_TXT,
       contents: `Quiz based on these notes: ${JSON.stringify(notes)}. JSON.`,
       config: { responseMimeType: "application/json" }
     });
@@ -335,23 +287,18 @@ export const generateReviewQuiz = async (notes: any[]) => {
 
 export const getExamTips = async (type: string) => {
   return aiCall(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: FLASH_TXT,
-      contents: `Bilingual strategies for ${type} exam.`,
-    });
+    const response = await ai.models.generateContent({ model: FLASH_TXT, contents: `Bilingual strategies for ${type} exam.` });
     return response.text || "";
   });
 };
 
 export const generateReadingArticle = async (category: string, progress: any) => {
+  const healingRules = logger.getAppliedRules(LearningModule.READING);
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: FLASH_TXT,
-      contents: `Latest news article in ${category} for Level ${progress.currentLevel}. Bilingual.`,
-      config: { 
-        responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }]
-      }
+      model: PRO_TXT,
+      contents: `Latest professional news article in ${category} for Level ${progress.currentLevel}. Bilingual. ${healingRules}`,
+      config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
     });
     return safeParse(response.text, { title: "", chineseTitle: "", content: "", keyWords: [], questions: [] });
   });
@@ -360,12 +307,9 @@ export const generateReadingArticle = async (category: string, progress: any) =>
 export const analyzeVisionItem = async (topic: string, type: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
-      model: FLASH_TXT,
+      model: PRO_TXT,
       contents: `Deep analysis of ${type}: "${topic}". JSON {article_en, article_cn, vocab, structures}`,
-      config: { 
-        responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }]
-      }
+      config: { responseMimeType: "application/json", tools: [{ googleSearch: {} }] }
     });
     return safeParse(response.text, { article_en: "", article_cn: "", vocab: [], structures: [] });
   });
