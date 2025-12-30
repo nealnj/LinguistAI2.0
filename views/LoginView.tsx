@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Sparkles, Phone, Lock, ArrowRight, UserCheck, ShieldCheck, Crown, Clock, Check, Zap, X } from 'lucide-react';
+import { Sparkles, Phone, Lock, ArrowRight, UserCheck, ShieldCheck, Crown, Clock, Check, Zap, X, Info } from 'lucide-react';
 import { logger } from '../services/logger';
 
 interface LoginViewProps {
@@ -19,7 +19,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       alert('请输入正确的手机号码');
       return;
     }
-    // 先显示权益选择框
     setShowChoiceModal(true);
   };
 
@@ -90,18 +89,13 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                  {isRegistering ? '已有账号？去登录' : '没有账号？自动注册'}
                </button>
                <span className="flex items-center gap-2 text-[10px] text-slate-300 font-bold uppercase tracking-widest">
-                 <UserCheck size={12} /> 独立数据加密存储
+                 <UserCheck size={12} /> 数据加密存储
                </span>
             </div>
           </form>
         </div>
-
-        <p className="text-center mt-10 text-slate-400 text-xs leading-relaxed max-w-xs mx-auto">
-          注册即表示同意《用户服务协议》与《隐私政策》，您的学习数据将安全加密于个人终端。
-        </p>
       </div>
 
-      {/* 权益选择弹窗 */}
       {showChoiceModal && (
         <div className="fixed inset-0 z-[300] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
           <div className="max-w-2xl w-full bg-white rounded-[3.5rem] shadow-2xl overflow-hidden relative animate-slide-up">
@@ -118,61 +112,72 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   <Zap size={32} />
                 </div>
                 <h2 className="text-3xl font-black text-slate-800 tracking-tighter">请选择您的学习方案</h2>
-                <p className="text-slate-500 font-medium">系统检测到您是正在进阶的 Learner，请为接下来的学习选择模式：</p>
+                <p className="text-slate-500 font-medium">所有新用户均可享受灵活的阶梯式付费模式</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* 方案 1: 免费试用 */}
-                <div className="p-8 rounded-[2.5rem] border-2 border-slate-100 bg-slate-50 flex flex-col justify-between hover:border-slate-200 transition-all">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 text-slate-400 font-black text-[10px] uppercase tracking-widest">
-                      <Clock size={14} /> 基础版
-                    </div>
-                    <h3 className="text-2xl font-black text-slate-800">每日免费试用</h3>
-                    <ul className="space-y-3 pt-4">
-                      <li className="flex items-center gap-2 text-xs font-bold text-slate-600"><Check size={14} className="text-emerald-500" /> 每日 30 分钟免费额度</li>
-                      <li className="flex items-center gap-2 text-xs font-bold text-slate-600"><Check size={14} className="text-emerald-500" /> 基础 AI 导师建议</li>
-                      <li className="flex items-center gap-2 text-xs font-bold text-slate-600"><Check size={14} className="text-emerald-500" /> 学习进度永久保存</li>
-                    </ul>
-                  </div>
-                  <button 
-                    onClick={() => handleChoice(false)}
-                    className="mt-10 w-full py-4 bg-white border-2 border-slate-200 text-slate-600 rounded-2xl font-black text-sm hover:bg-slate-100 transition-all"
-                  >
-                    先试用看看
-                  </button>
-                </div>
-
-                {/* 方案 2: Pro 版 */}
-                <div className="p-8 rounded-[2.5rem] border-2 border-indigo-600 bg-indigo-50 flex flex-col justify-between relative overflow-hidden ring-4 ring-indigo-50">
-                  <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[8px] font-black px-4 py-1.5 uppercase tracking-widest rounded-bl-2xl">
-                    Most Value
-                  </div>
+                {/* 方案 1: 体验套餐 (更新) */}
+                <div className="p-8 rounded-[2.5rem] border-2 border-indigo-200 bg-indigo-50/30 flex flex-col justify-between hover:border-indigo-300 transition-all relative">
+                  <div className="absolute top-4 right-4 text-indigo-500 animate-pulse"><Sparkles size={16}/></div>
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 text-indigo-600 font-black text-[10px] uppercase tracking-widest">
-                      <Crown size={14} /> 专业版 (PRO)
+                      <Clock size={14} /> 阶梯体验套餐
                     </div>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black text-indigo-950 tracking-tighter">¥5</span>
-                      <span className="text-xs font-bold text-indigo-400">/ 月度</span>
+                      <span className="text-3xl font-black text-slate-900 tracking-tighter">¥5</span>
+                      <span className="text-xs font-bold text-slate-400">/ 2天全功能</span>
                     </div>
-                    <ul className="space-y-3 pt-4">
-                      <li className="flex items-center gap-2 text-xs font-bold text-indigo-900"><Check size={14} className="text-indigo-600" /> 无限学习时长，不限次数</li>
-                      <li className="flex items-center gap-2 text-xs font-bold text-indigo-900"><Check size={14} className="text-indigo-600" /> 深度行业英语定制内容</li>
-                      <li className="flex items-center gap-2 text-xs font-bold text-indigo-900"><Check size={14} className="text-indigo-600" /> 优先响应 AI 导师对话</li>
+                    <div className="bg-indigo-600/10 p-3 rounded-xl border border-indigo-600/10 flex items-start gap-2">
+                      <Info size={14} className="text-indigo-600 mt-0.5 shrink-0" />
+                      <p className="text-[10px] text-indigo-700 font-bold leading-relaxed">
+                        支持滚动续费，每 5 元延期 2 天，<span className="underline decoration-indigo-300">最长可连续体验 6 个月</span>。
+                      </p>
+                    </div>
+                    <ul className="space-y-3 pt-2">
+                      <li className="flex items-center gap-2 text-[11px] font-bold text-slate-600"><Check size={12} className="text-emerald-500" /> 2天全模块 100% 开放</li>
+                      <li className="flex items-center gap-2 text-[11px] font-bold text-slate-600"><Check size={12} className="text-emerald-500" /> 解锁 AI 口语与职场分析</li>
                     </ul>
                   </div>
                   <button 
                     onClick={() => handleChoice(true)}
-                    className="mt-10 w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all flex items-center justify-center gap-2"
+                    className="mt-10 w-full py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-2xl font-black text-sm hover:bg-indigo-600 hover:text-white transition-all shadow-lg shadow-indigo-100"
                   >
-                    立即充值升级 <ArrowRight size={16} />
+                    ¥5 开启体验
+                  </button>
+                </div>
+
+                {/* 方案 2: Pro 版 */}
+                <div className="p-8 rounded-[2.5rem] border-2 border-slate-900 bg-slate-900 text-white flex flex-col justify-between relative overflow-hidden shadow-2xl">
+                  <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[8px] font-black px-4 py-1.5 uppercase tracking-widest rounded-bl-2xl">
+                    Ultimate Pro
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 text-indigo-400 font-black text-[10px] uppercase tracking-widest">
+                      <Crown size={14} /> 尊享订阅 (Monthly)
+                    </div>
+                    <div className="flex flex-col">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-black text-white tracking-tighter">¥200</span>
+                        <span className="text-xs font-bold text-slate-500">/ 月度</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-bold mt-1">等价 $28.00 USD</span>
+                    </div>
+                    <ul className="space-y-3 pt-4">
+                      <li className="flex items-center gap-2 text-[11px] font-bold text-slate-300"><Check size={12} className="text-indigo-400" /> 无限学习时长与资源</li>
+                      <li className="flex items-center gap-2 text-[11px] font-bold text-slate-300"><Check size={12} className="text-indigo-400" /> 优先响应高速 AI 导师</li>
+                    </ul>
+                  </div>
+                  <button 
+                    onClick={() => handleChoice(true)}
+                    className="mt-10 w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 shadow-xl shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    立即订阅 Pro <ArrowRight size={16} />
                   </button>
                 </div>
               </div>
 
               <p className="text-center text-[10px] text-slate-400 font-medium">
-                * 每天均有 30 分钟免费时长，超出后需付费使用。
+                * 您可以随时根据学习进度在 ¥5 体验价与 ¥200 月度订阅之间切换。
               </p>
             </div>
           </div>

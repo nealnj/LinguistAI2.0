@@ -20,7 +20,6 @@ import LoginView from './views/LoginView';
 import PaymentModal from './components/PaymentModal';
 import { logger } from './services/logger';
 
-// Fix: Change aistudio to optional in the Window interface extension. 
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
@@ -168,7 +167,7 @@ const App: React.FC = () => {
                <span className="text-[9px] font-black uppercase tracking-widest">{isSecure ? 'Secure Sync Active' : 'Security Alert'}</span>
             </div>
             
-            {!usageStats.isPro && <button onClick={() => setShowPayment(true)} className="bg-amber-100 text-amber-700 px-4 py-2 rounded-xl text-[10px] font-black border border-amber-200 uppercase tracking-widest flex items-center gap-2"><Crown size={14} /> 升级 Pro (¥5/月)</button>}
+            {!usageStats.isPro && <button onClick={() => setShowPayment(true)} className="bg-amber-100 text-amber-700 px-4 py-2 rounded-xl text-[10px] font-black border border-amber-200 uppercase tracking-widest flex items-center gap-2"><Crown size={14} /> 升级 Pro (¥200/月)</button>}
             <div className="bg-indigo-50 text-indigo-700 px-4 py-1.5 rounded-xl text-[10px] font-black border border-indigo-100 uppercase tracking-widest">Linguist Prime</div>
           </div>
         </header>

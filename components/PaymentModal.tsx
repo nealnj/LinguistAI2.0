@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X, ShieldCheck, Zap, Info, ArrowRight, MessageCircle, Copy, CheckCircle2 } from 'lucide-react';
+import { X, ShieldCheck, Zap, Info, ArrowRight, MessageCircle, Copy, CheckCircle2, Clock, Sparkles } from 'lucide-react';
 
 interface PaymentModalProps {
   onClose: () => void;
@@ -28,32 +28,41 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ onClose }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-2">
           {/* Info Side */}
-          <div className="p-10 bg-indigo-600 text-white space-y-8 flex flex-col justify-center">
-            <div className="bg-white/10 w-fit p-3 rounded-2xl backdrop-blur-md">
-              <ShieldCheck size={28} />
+          <div className="p-10 bg-slate-900 text-white space-y-8 flex flex-col justify-center relative overflow-hidden">
+            <div className="absolute top-0 left-0 p-8 opacity-5 -rotate-12"><Zap size={200} /></div>
+            
+            <div className="bg-white/10 w-fit p-3 rounded-2xl backdrop-blur-md relative z-10">
+              <ShieldCheck size={28} className="text-indigo-400" />
             </div>
-            <div className="space-y-3">
-              <h2 className="text-3xl font-black tracking-tighter leading-tight">升级 Pro<br/>解锁无限可能</h2>
-              <p className="text-indigo-100 text-sm leading-relaxed font-medium">
-                每日 30 分钟免费额度已用完。只需一顿早餐钱，即可解锁全天候 AI 导师辅导，彻底打破语言学习边界。
+            
+            <div className="space-y-3 relative z-10">
+              <h2 className="text-3xl font-black tracking-tighter leading-tight">投资您的<br/>全球化能力</h2>
+              <p className="text-slate-400 text-sm leading-relaxed font-medium">
+                LinguistAI 采用阶梯灵活定价，确保每一位学习者都能以最低门槛接触顶级 AI 教学资源。
               </p>
             </div>
             
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/10">
-                <div className="text-amber-400 font-black text-2xl">¥5</div>
-                <div className="flex-1">
-                  <div className="text-[10px] font-black uppercase tracking-widest opacity-60">超值订阅方案</div>
-                  <div className="text-xs font-bold">全月无限次学习 (30天)</div>
+            <div className="space-y-4 relative z-10">
+              {/* Option: Pro */}
+              <div className="bg-white/5 p-5 rounded-2xl border border-white/10 space-y-2 group hover:bg-white/10 transition-colors">
+                <div className="flex justify-between items-start">
+                  <div className="text-amber-400 font-black text-2xl tracking-tighter">¥200 <span className="text-[10px] text-slate-500">/ $28</span></div>
+                  <span className="bg-indigo-600 text-white text-[8px] font-black px-2 py-1 rounded-lg">PRO 订阅</span>
+                </div>
+                <p className="text-[10px] text-slate-400 font-bold">全月 30 天无限次高频使用，适合备考及职场人士。</p>
+              </div>
+
+              {/* Option: Experience (Updated) */}
+              <div className="bg-indigo-600 p-5 rounded-2xl border border-indigo-500 space-y-2 shadow-xl shadow-indigo-900/50">
+                <div className="flex justify-between items-start">
+                  <div className="text-white font-black text-2xl tracking-tighter">¥5 <span className="text-[10px] text-indigo-200">/ 2天</span></div>
+                  <span className="bg-white text-indigo-600 text-[8px] font-black px-2 py-1 rounded-lg">体验价</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock size={12} className="text-indigo-200" />
+                  <p className="text-[10px] text-indigo-100 font-bold italic">支持滚动购买，最长可连续使用 6 个月。</p>
                 </div>
               </div>
-              <ul className="space-y-2">
-                {['不限时长的 AI 对话', '深度行业词库解锁', '导出学习报告', '优先技术支持'].map((item, i) => (
-                  <li key={i} className="flex items-center gap-2 text-[10px] font-bold text-indigo-200">
-                    <CheckCircle2 size={12} className="text-emerald-400" /> {item}
-                  </li>
-                ))}
-              </ul>
             </div>
           </div>
 
@@ -63,19 +72,19 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ onClose }) => {
               <div className="bg-indigo-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto text-indigo-600 mb-2">
                 <MessageCircle size={32} />
               </div>
-              <h3 className="text-xl font-black text-slate-800 tracking-tight">添加导师微信激活</h3>
-              <p className="text-xs text-slate-400 font-medium">由于系统维护，请联系教务人工处理</p>
+              <h3 className="text-xl font-black text-slate-800 tracking-tight">添加教务微信激活</h3>
+              <p className="text-xs text-slate-400 font-medium">人工审核充值，5分钟内开通</p>
             </div>
 
             <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-4 relative">
               <div className="text-center">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">导师微信号 (同手机)</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">教务微信号</p>
                 <div className="text-2xl font-black text-indigo-600 tracking-tighter mb-4">{wechatId}</div>
                 <button 
                   onClick={handleCopy}
                   className={`w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-95 ${
-                    copied ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white hover:bg-slate-800'
-                  }`}
+                    copied ? 'bg-emerald-500 text-white shadow-emerald-100' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200'
+                  } shadow-xl`}
                 >
                   {copied ? <><CheckCircle2 size={18} /> 已复制 ID</> : <><Copy size={18} /> 复制微信号</>}
                 </button>
@@ -84,16 +93,16 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ onClose }) => {
 
             <div className="space-y-4 text-left">
                <div className="flex items-start gap-3 bg-amber-50 p-4 rounded-2xl border border-amber-100">
-                 <div className="text-amber-500 mt-1"><Info size={16} /></div>
+                 <div className="text-amber-500 mt-1"><Sparkles size={16} /></div>
                  <p className="text-[10px] text-amber-900 font-bold leading-relaxed">
-                   添加好友时请备注：<span className="text-slate-900 underline">“学习充值”</span>。导师将在 5 分钟内为您手动开通 Pro 权限。
+                   添加好友时备注 <span className="text-slate-900 underline">“5元体验”</span> 或 <span className="text-slate-900 underline">“200订阅”</span>。您可以选择一次性充值 15 元解锁 6 天，以此类推。
                  </p>
                </div>
                
                <div className="pt-2">
                  <p className="text-[9px] text-slate-300 font-medium text-center">
-                   支持微信 / 支付宝 / 银行转账<br/>
-                   人工服务时间：08:00 - 23:00
+                   支持微信 / 支付宝 / PayPal<br/>
+                   人工在线：08:00 - 23:30
                  </p>
                </div>
             </div>
