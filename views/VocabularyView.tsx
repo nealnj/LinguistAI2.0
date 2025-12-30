@@ -157,7 +157,6 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
     if (currentIndex < words.length - 1) { setCurrentIndex(currentIndex + 1); setUserInput(''); setShowHint(false); setFailCount(0); } else { setIsFinished(true); }
   };
 
-  // Fix: Added checkReview function to handle user input validation in review mode
   const checkReview = () => {
     const currentWord = words[currentIndex];
     if (!currentWord) return;
@@ -185,7 +184,7 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
           <Loader2 className="animate-spin text-indigo-600" size={64} />
           <Stars className="absolute -top-2 -right-2 text-amber-400 animate-float" size={24} />
         </div>
-        <p className="text-slate-500 font-black uppercase tracking-widest text-sm">正在构建逻辑词库...</p>
+        <p className="text-slate-500 font-black uppercase tracking-widest text-sm">正在通过词源引擎构建深度词库...</p>
       </div>
     );
   }
@@ -233,7 +232,7 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
         <div className="flex items-center gap-6">
           <div className="bg-indigo-600 p-4 rounded-[1.5rem] text-white shadow-xl animate-float"><BookOpen size={28} /></div>
           <div>
-            <h1 className="text-2xl font-black text-slate-800 tracking-tighter">词汇逻辑分析</h1>
+            <h1 className="text-2xl font-black text-slate-800 tracking-tighter">深度词汇解构</h1>
             <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-emerald-500" /> 当前任务: {currentIndex + 1} / {words.length}
             </p>
@@ -255,7 +254,9 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
               <p className="text-4xl font-black text-indigo-600 mb-6 tracking-tight">{currentWord.translation}</p>
               
               <div className="flex items-center justify-center gap-6 text-slate-300 mb-12 font-mono text-3xl">
-                <span className="italic opacity-80">/{currentWord.phonetic || '...'}/</span>
+                <span className="italic font-medium text-slate-500 bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 shadow-inner">
+                  {currentWord.phonetic || '/.../'}
+                </span>
                 <button onClick={() => playPronunciation(currentWord.word)} className={`p-6 rounded-[2rem] shadow-2xl transition-all ${isPlaying === currentWord.word ? 'bg-indigo-600 text-white animate-pulse' : 'bg-white text-indigo-600 border border-indigo-50 hover:scale-110 active:scale-90 hover:shadow-indigo-100'}`}><Volume2 size={32} /></button>
               </div>
               
@@ -296,35 +297,37 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
                 </div>
 
                 {/* 句法结构透视卡片 */}
-                <div className="bg-white/80 backdrop-blur-sm p-8 rounded-[2.5rem] border border-slate-200/50 space-y-6 relative z-10 shadow-sm">
-                   <div className="flex items-center justify-between">
-                      <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest"><Layout size={14} /> 句法结构透视 (Syntactic Mapping)</h5>
-                      <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase">{currentWord.exampleStructure?.sentenceType || "Parsing..."}</span>
-                   </div>
+                {currentWord.exampleStructure && (
+                  <div className="bg-white/80 backdrop-blur-sm p-8 rounded-[2.5rem] border border-slate-200/50 space-y-6 relative z-10 shadow-sm">
+                    <div className="flex items-center justify-between">
+                        <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest"><Layout size={14} /> 句法结构透视 (Syntactic Mapping)</h5>
+                        <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase">{currentWord.exampleStructure.sentenceType || "Parsing..."}</span>
+                    </div>
 
-                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
-                         <span className="text-[8px] font-black text-blue-500 uppercase block mb-1">Subject</span>
-                         <span className="text-sm font-black text-blue-900">{currentWord.exampleStructure?.analysis.subject || '-'}</span>
-                      </div>
-                      <div className="p-4 bg-rose-50/50 rounded-2xl border border-rose-100">
-                         <span className="text-[8px] font-black text-rose-500 uppercase block mb-1">Verb</span>
-                         <span className="text-sm font-black text-rose-900">{currentWord.exampleStructure?.analysis.verb || '-'}</span>
-                      </div>
-                      <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
-                         <span className="text-[8px] font-black text-emerald-500 uppercase block mb-1">Object</span>
-                         <span className="text-sm font-black text-emerald-900">{currentWord.exampleStructure?.analysis.object || '-'}</span>
-                      </div>
-                      <div className="p-4 bg-slate-100/50 rounded-2xl border border-slate-200">
-                         <span className="text-[8px] font-black text-slate-400 uppercase block mb-1">Others</span>
-                         <span className="text-sm font-black text-slate-600">{currentWord.exampleStructure?.analysis.others || '-'}</span>
-                      </div>
-                   </div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
+                          <span className="text-[8px] font-black text-blue-500 uppercase block mb-1">Subject</span>
+                          <span className="text-sm font-black text-blue-900">{currentWord.exampleStructure.analysis.subject || '-'}</span>
+                        </div>
+                        <div className="p-4 bg-rose-50/50 rounded-2xl border border-rose-100">
+                          <span className="text-[8px] font-black text-rose-500 uppercase block mb-1">Verb</span>
+                          <span className="text-sm font-black text-rose-900">{currentWord.exampleStructure.analysis.verb || '-'}</span>
+                        </div>
+                        <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
+                          <span className="text-[8px] font-black text-emerald-500 uppercase block mb-1">Object</span>
+                          <span className="text-sm font-black text-emerald-900">{currentWord.exampleStructure.analysis.object || '-'}</span>
+                        </div>
+                        <div className="p-4 bg-slate-100/50 rounded-2xl border border-slate-200">
+                          <span className="text-[8px] font-black text-slate-400 uppercase block mb-1">Others</span>
+                          <span className="text-sm font-black text-slate-600">{currentWord.exampleStructure.analysis.others || '-'}</span>
+                        </div>
+                    </div>
 
-                   <div className="pt-4 border-t border-slate-100">
-                      <p className="text-xs text-slate-500 leading-relaxed italic"><span className="font-black text-indigo-600 mr-2">逻辑详解:</span> {currentWord.exampleStructure?.explanation || '结构化分析正在生成...'}</p>
-                   </div>
-                </div>
+                    <div className="pt-4 border-t border-slate-100">
+                        <p className="text-xs text-slate-500 leading-relaxed italic"><span className="font-black text-indigo-600 mr-2">逻辑详解:</span> {currentWord.exampleStructure.explanation || '结构化分析正在生成...'}</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-6">
@@ -335,7 +338,7 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
           </div>
 
           <div className="lg:col-span-5 space-y-8 animate-slide-up delay-200">
-            <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden flex flex-col">
+            <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden flex flex-col min-h-[500px]">
               <div className="flex bg-slate-50/50 p-3 gap-3">
                 {[
                   { id: 'systematic', label: '变形体系', icon: <GitBranch size={18} /> },
@@ -363,7 +366,9 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
                               </div>
                               <span className="text-[10px] font-black text-indigo-400 bg-white px-3 py-1 rounded-full shadow-sm">{f.pos || 'N/A'}</span>
                             </div>
-                            <div className="text-sm text-slate-400 font-mono tracking-wide">/{f.phonetic || '...'}/ • <span className="font-black text-slate-800">{f.meaning || '含义解析中...'}</span></div>
+                            <div className="text-sm text-slate-400 font-mono tracking-wide italic">
+                              {f.phonetic || '/.../'} • <span className="font-black text-slate-800 not-italic">{f.meaning || '含义解析中...'}</span>
+                            </div>
                             <div className="relative group/example">
                               <p className="text-sm text-slate-500 italic bg-white/60 p-5 rounded-2xl border border-indigo-50 shadow-inner pr-12">"{f.example || 'Example processing...'}"</p>
                               <button 
@@ -378,8 +383,8 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
                         ))
                       ) : (
                         <div className="text-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100 space-y-4">
-                          <Loader2 className="animate-spin text-indigo-300 mx-auto" size={32} />
-                          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">派生词系谱构建中...</p>
+                          <Zap className="animate-pulse text-indigo-300 mx-auto" size={32} />
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">词汇系谱解析完成，暂无额外衍生形态</p>
                         </div>
                       )}
                     </div>
@@ -402,7 +407,7 @@ const VocabularyView: React.FC<{ onNavigate?: (module: LearningModule) => void }
                               </div>
                               <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest bg-white px-3 py-1 rounded-full">Synonym</span>
                             </div>
-                            <p className="text-sm text-slate-600"><span className="font-mono text-[11px] opacity-60 mr-2">/{s.phonetic}/</span> {s.meaning}</p>
+                            <p className="text-sm text-slate-600"><span className="font-mono text-[11px] opacity-60 mr-2">{s.phonetic}</span> {s.meaning}</p>
                             <div className="relative">
                               <p className="text-[11px] text-slate-400 italic mt-2 bg-white/30 p-2 rounded-lg leading-relaxed pr-8">"{s.example}"</p>
                               <button 

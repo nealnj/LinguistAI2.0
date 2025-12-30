@@ -81,12 +81,90 @@ export const generateGlobalInsights = async (country: string) => {
   });
 };
 
+/**
+ * 系统词汇生成：强制包含音标、派生词形态、词根词缀及句法剖析
+ */
 export const generateVocabulary = async (level: string) => {
   return aiCall(async (ai) => {
     const response = await ai.models.generateContent({
       model: FLASH_TXT,
-      contents: `Generate 5 academic vocabulary words for ${level}. Return JSON array.`,
-      config: { responseMimeType: "application/json" }
+      contents: `ACT AS AN ACADEMIC ETYMOLOGIST.
+      TASK: Generate 5 HIGH-VALUE academic words for ${level}. 
+      CRITICAL: You MUST provide accurate IPA phonetics, multiple morphological forms (derivatives), and structural analysis.`,
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              word: { type: Type.STRING },
+              phonetic: { type: Type.STRING, description: 'Accurate IPA phonetic with slashes' },
+              translation: { type: Type.STRING },
+              pos: { type: Type.STRING, description: 'Part of speech' },
+              example: { type: Type.STRING },
+              exampleTranslation: { type: Type.STRING },
+              exampleStructure: {
+                type: Type.OBJECT,
+                properties: {
+                  sentenceType: { type: Type.STRING },
+                  analysis: {
+                    type: Type.OBJECT,
+                    properties: {
+                      subject: { type: Type.STRING },
+                      verb: { type: Type.STRING },
+                      object: { type: Type.STRING },
+                      others: { type: Type.STRING }
+                    },
+                    required: ['subject', 'verb', 'object', 'others']
+                  },
+                  explanation: { type: Type.STRING }
+                },
+                required: ['sentenceType', 'analysis', 'explanation']
+              },
+              mnemonic: { type: Type.STRING },
+              visualPrompt: { type: Type.STRING },
+              forms: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    form: { type: Type.STRING },
+                    pos: { type: Type.STRING },
+                    phonetic: { type: Type.STRING },
+                    meaning: { type: Type.STRING },
+                    example: { type: Type.STRING },
+                    derivationReason: { type: Type.STRING }
+                  },
+                  required: ['form', 'pos', 'phonetic', 'meaning', 'example', 'derivationReason']
+                }
+              },
+              relatedWords: {
+                type: Type.OBJECT,
+                properties: {
+                  synonym: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        word: { type: Type.STRING },
+                        phonetic: { type: Type.STRING },
+                        meaning: { type: Type.STRING },
+                        example: { type: Type.STRING }
+                      }
+                    }
+                  }
+                }
+              },
+              roots: { type: Type.STRING },
+              affixes: { type: Type.STRING },
+              etymology: { type: Type.STRING },
+              memoryTip: { type: Type.STRING }
+            },
+            required: ['word', 'phonetic', 'translation', 'pos', 'example', 'exampleStructure', 'mnemonic', 'forms', 'relatedWords']
+          }
+        }
+      }
     });
     return safeParse(response.text, []);
   });
