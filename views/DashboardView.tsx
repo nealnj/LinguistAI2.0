@@ -17,8 +17,8 @@ import {
   Target,
   BarChart4,
   Loader2,
-  // Added missing icon X
-  X
+  X,
+  AlertTriangle
 } from 'lucide-react';
 import { LearningModule, RoadmapStep, MasterProgress } from '../types';
 import { generateLearningPlan, generateReviewQuiz } from '../services/geminiService';
@@ -31,6 +31,7 @@ interface DashboardViewProps {
 const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const [roadmap, setRoadmap] = useState<RoadmapStep[]>([]);
   const [loadingRoadmap, setLoadingRoadmap] = useState(false);
+  const [roadmapError, setRoadmapError] = useState<string | null>(null);
   const [reinforcementQuiz, setReinforcementQuiz] = useState<any[]>([]);
   const [loadingReview, setLoadingReview] = useState(false);
   const [showReview, setShowReview] = useState(false);
@@ -41,33 +42,35 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const notes = logger.getNotes();
   const recentNotes = useMemo(() => notes.slice(-5), [notes]);
 
-  useEffect(() => {
-    const fetchRoadmap = async () => {
-      if (roadmap.length > 0) return;
-      
-      setLoadingRoadmap(true);
-      try {
-        const goal = `${masterProgress.specialization} Mastery & Academic Success`;
-        const plan = await generateLearningPlan(goal);
-        if (Array.isArray(plan)) {
-          const processed = plan.map((p: any, i: number) => {
-            let status: 'locked' | 'current' | 'completed' = 'locked';
-            const stageLevel = (i + 1) * 5;
-            if (masterProgress.overallLevel >= stageLevel) status = 'completed';
-            else if (masterProgress.overallLevel >= stageLevel - 5) status = 'current';
-            
-            // 修复：确保 focus 始终是数组，防止 .map 报错
-            const focus = Array.isArray(p.focus) ? p.focus : (p.focus ? [String(p.focus)] : []);
-            return { ...p, focus, status };
-          });
-          setRoadmap(processed);
-        }
-      } catch (e) { 
-        console.error("Roadmap Loading Failed", e); 
-      } finally { 
-        setLoadingRoadmap(false); 
+  const fetchRoadmap = async () => {
+    setLoadingRoadmap(true);
+    setRoadmapError(null);
+    try {
+      const goal = `${masterProgress.specialization} Mastery & Academic Success`;
+      const plan = await generateLearningPlan(goal);
+      if (Array.isArray(plan)) {
+        const processed = plan.map((p: any, i: number) => {
+          let status: 'locked' | 'current' | 'completed' = 'locked';
+          const stageLevel = (i + 1) * 5;
+          if (masterProgress.overallLevel >= stageLevel) status = 'completed';
+          else if (masterProgress.overallLevel >= stageLevel - 5) status = 'current';
+          
+          const focus = Array.isArray(p.focus) ? p.focus : (p.focus ? [String(p.focus)] : []);
+          return { ...p, focus, status };
+        });
+        setRoadmap(processed);
+      } else {
+        throw new Error("Invalid roadmap format received.");
       }
-    };
+    } catch (e: any) { 
+      console.error("Roadmap Loading Failed", e);
+      setRoadmapError("AI 导师暂时无法连接，路线图加载失败。建议检查网络或稍后重试。");
+    } finally { 
+      setLoadingRoadmap(false); 
+    }
+  };
+
+  useEffect(() => {
     fetchRoadmap();
   }, [masterProgress.overallLevel, masterProgress.specialization]);
 
@@ -77,7 +80,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     setShowReview(true);
     try {
       const quiz = await generateReviewQuiz(recentNotes);
-      setReinforcementQuiz(quiz);
+      setReinforcementQuiz(Array.isArray(quiz) ? quiz : []);
     } catch (e) { 
       console.error(e); 
     } finally { 
@@ -99,7 +102,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
 
   return (
     <div className="space-y-6 lg:space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
-      {/* Global Status Banner */}
       <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-indigo-900 rounded-[2rem] lg:rounded-[3.5rem] p-8 lg:p-12 text-white relative overflow-hidden shadow-2xl">
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           <div className="space-y-4 lg:space-y-6">
@@ -155,7 +157,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                {loadingReview ? (
                  <div className="flex flex-col items-center gap-4 py-10">
                    <Loader2 size={40} className="animate-spin" />
-                   <p className="font-black text-[10px] uppercase tracking-widest">正在根据笔记同步记忆映射...</p>
+                   <p className="font-black text-[10px] uppercase tracking-widest">同步记忆映射...</p>
                  </div>
                ) : (
                  <div className="space-y-6 lg:space-y-8 relative z-10">
@@ -163,8 +165,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                        <h3 className="text-xl lg:text-2xl font-black flex items-center gap-3"><Zap size={24} /> 交互式回顾测验</h3>
                        <button onClick={() => setShowReview(false)} className="text-white/40 hover:text-white p-2"><X size={24} /></button>
                     </div>
+                    {reinforcementQuiz.length > 0 ? (
                     <div className="bg-white/10 p-6 lg:p-8 rounded-3xl border border-white/10 space-y-6">
-                       <p className="text-lg lg:text-xl font-bold leading-relaxed">{reinforcementQuiz[reviewIdx]?.question || "正在准备题目..."}</p>
+                       <p className="text-lg lg:text-xl font-bold leading-relaxed">{reinforcementQuiz[reviewIdx]?.question || "加载中..."}</p>
                        <div className="grid grid-cols-1 gap-3">
                           {reinforcementQuiz[reviewIdx]?.options?.map((opt: string, i: number) => (
                             <button 
@@ -181,6 +184,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                           ))}
                        </div>
                     </div>
+                    ) : <p className="text-center py-10 opacity-60">未获取到测验题目，请重试。</p>}
                     {reviewAns !== null && (
                       <div className="animate-in fade-in slide-in-from-top-4">
                         <p className="text-indigo-200 text-xs italic mb-4">“{reinforcementQuiz[reviewIdx]?.explanation}”</p>
@@ -192,14 +196,13 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
             </section>
           )}
 
-          {/* Master Syllabus Roadmap */}
           <section className="bg-white p-6 lg:p-12 rounded-[2rem] lg:rounded-[3.5rem] border border-slate-100 shadow-sm relative min-h-[400px]">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 lg:mb-12 gap-4">
                <div>
                   <h3 className="text-xl lg:text-2xl font-black text-slate-800 flex items-center gap-4">
                     <Map className="text-indigo-600" /> 系统化大纲 (Roadmap)
                   </h3>
-                  <p className="text-slate-400 text-xs mt-1">根据您的 Level {masterProgress.overallLevel} 动态生成</p>
+                  <p className="text-slate-400 text-xs mt-1">基于当前等级 Lvl {masterProgress.overallLevel}</p>
                </div>
                <div className="flex flex-col items-end">
                   <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Next Milestone</span>
@@ -221,6 +224,14 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                         </div>
                       </div>
                     ))}
+                  </div>
+               ) : roadmapError ? (
+                  <div className="flex flex-col items-center justify-center py-20 bg-slate-50 rounded-[2rem] border-2 border-dashed border-rose-100 gap-4">
+                    <AlertTriangle className="text-rose-400" size={48} />
+                    <p className="text-sm font-bold text-slate-500 text-center px-8">{roadmapError}</p>
+                    <button onClick={fetchRoadmap} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2">
+                      <RefreshCcw size={14} /> 重新连接 AI
+                    </button>
                   </div>
                ) : (
                 roadmap.map((step, i) => (
@@ -257,7 +268,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         </div>
 
         <div className="lg:col-span-4 space-y-6 lg:space-y-10">
-           {/* Intelligent Study Queue */}
            <section className="bg-white p-6 lg:p-10 rounded-[2rem] lg:rounded-[3rem] border border-slate-100 shadow-sm space-y-6">
              <div className="flex items-center justify-between">
                 <h3 className="text-lg lg:text-xl font-black text-slate-800 flex items-center gap-3"><Target className="text-amber-500" /> 记忆节点</h3>
